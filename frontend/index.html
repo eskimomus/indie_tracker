@@ -241,7 +241,7 @@
       background-color: var(--bg-base);
     }
     #lastUpdated {
-      top: 161px !important;
+      top: 151px !important;
       right: 0 !important;
       left: auto !important;
       text-align: right !important;
@@ -350,14 +350,19 @@
      size here is in the element's own *local*, pre-zoom coordinate space,
      so giving it the same zoom as #canvas reproduces the exact on-screen
      width canvas's own content gets, without needing to be a descendant
-     of it. */
+     of it.
+     No z-index (left at auto) so it stacks purely by DOM order — it's
+     placed right after #bgBase/#bgStripes and before #canvas in the
+     markup, so it paints above the background but under the entire
+     interface, instead of the z-index:9999 it used to carry, which put it
+     above absolutely everything (dropdowns, the open description panel,
+     all of it). */
   .page-vignette {
     position: fixed;
     top: 0;
     bottom: 0;
     width: 311px;
     pointer-events: none;
-    z-index: 9999;
     opacity: 0.3;
   }
   /* more opaque edge sits at the page's own corner in both cases */
@@ -1474,6 +1479,9 @@
 <div id="bgBase"></div>
 <div id="bgStripes"></div>
 
+<div class="page-vignette page-vignette-left"></div>
+<div class="page-vignette page-vignette-right"></div>
+
 <div id="canvas">
   <script>
     (function() {
@@ -1544,9 +1552,6 @@
     <div class="rows" id="rows"></div>
   </div>
 </div>
-
-<div class="page-vignette page-vignette-left"></div>
-<div class="page-vignette page-vignette-right"></div>
 
 
 
@@ -2769,7 +2774,17 @@ function rescale() {
   const ps = getPageScale();
   const scale = (window.innerWidth / 1920) * ps;
   canvas.style.zoom = scale;
-  canvas.style.left = ps > 1 ? "-" + ((window.innerWidth * (ps - 1)) / 2) + "px" : "0px";
+  // left lives on #canvas itself, which already has `zoom: scale` above —
+  // zoom re-interprets every length property on the element it's set on,
+  // not just its descendants', so a plain real-pixel offset here gets
+  // multiplied by `scale` *again* on top of the real shift actually
+  // wanted, landing at scale*desired instead of desired (e.g. at
+  // scale=0.234, asking for -37.5px only ever moved it -8.8px). Dividing
+  // by scale first cancels that out, same as every other zoom-vs-real-
+  // pixel conversion elsewhere in this file (see fitRowTitle, the video
+  // player wrapper, etc).
+  const desiredShift = ps > 1 ? (window.innerWidth * (ps - 1)) / 2 : 0;
+  canvas.style.left = desiredShift ? "-" + (desiredShift / scale) + "px" : "0px";
   // scrollHeight is measured in canvas's own unzoomed local pixels, not the
   // zoomed size actually painted on screen — using it directly here left
   // body far taller than the visible canvas, exposing its plain (unstriped)
