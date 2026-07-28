@@ -283,12 +283,25 @@
        flush-fitted fixed layer briefly reveals bare page background above
        the fold. The overhang keeps both layers in view through any
        reasonably-sized bounce; only the flat html/body background (see
-       above) is left to cover bounces bigger than that. */
+       above) is left to cover bounces bigger than that.
+       vh is a second, *separate* Safari problem on top of that: it's a
+       fixed number computed once for whichever toolbar state (address bar
+       shown vs. hidden-on-scroll) happened to be active when it was last
+       measured, not a live "current viewport" value — so 200vh worth of
+       overhang can fall short right at the top/bottom edge the moment the
+       toolbar's shown/hidden state changes again, exposing a sliver of
+       raw html/body background there. dvh is the unit Safari actually
+       added specifically to track the *live* visual viewport through
+       exactly that transition; declaring vh first and dvh right after
+       keeps plain vh as the fallback wherever dvh isn't supported, since
+       an unsupported value is ignored and the last valid one wins. */
     position: fixed;
     top: -50vh;
+    top: -50dvh;
     left: -50vw;
     width: 200vw;
     height: 200vh;
+    height: 200dvh;
   }
   #bgBase {
     background-color: var(--bg-base);
@@ -356,7 +369,17 @@
      markup, so it paints above the background but under the entire
      interface, instead of the z-index:9999 it used to carry, which put it
      above absolutely everything (dropdowns, the open description panel,
-     all of it). */
+     all of it).
+     top:0/bottom:0 (not an explicit height) is deliberate, not an
+     oversight — this element carries its *own* zoom (right below, in
+     rescale()) so its 311px width scales the same way canvas's own
+     content does, but that same zoom would just as happily re-scale a
+     declared height too (tried height:100dvh here briefly: it rendered at
+     100dvh × zoom, nowhere near the real viewport). top/bottom stretch
+     *isn't* a declared length being handed to that zoom math at all —
+     it's a constraint solved against the containing block, so it comes
+     out to the true viewport height regardless of this element's own
+     zoom, every time. */
   .page-vignette {
     position: fixed;
     top: 0;
