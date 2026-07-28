@@ -240,12 +240,6 @@
       overflow-x: hidden !important;
       background-color: var(--bg-base);
     }
-    body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-    }
     #lastUpdated {
       top: 161px !important;
       right: 0 !important;
@@ -291,7 +285,10 @@
        reasonably-sized bounce; only the flat html/body background (see
        above) is left to cover bounces bigger than that. */
     position: fixed;
-    inset: -400px;
+    top: -50vh;
+    left: -50vw;
+    width: 200vw;
+    height: 200vh;
   }
   #bgBase {
     background-color: var(--bg-base);
@@ -1485,6 +1482,7 @@
         var w = window.innerWidth;
         var ps = w <= 768 ? 1.2 : (w <= 1024 ? 0.8 : 0.7);
         c.style.zoom = (w / 1920) * ps;
+        c.style.left = ps > 1 ? "-" + ((w * (ps - 1)) / 2) + "px" : "0px";
       }
     })();
   </script>
@@ -2768,8 +2766,10 @@ function getPageScale() {
 
 function rescale() {
   const canvas = document.getElementById("canvas");
-  const scale = (window.innerWidth / 1920) * getPageScale();
+  const ps = getPageScale();
+  const scale = (window.innerWidth / 1920) * ps;
   canvas.style.zoom = scale;
+  canvas.style.left = ps > 1 ? "-" + ((window.innerWidth * (ps - 1)) / 2) + "px" : "0px";
   // scrollHeight is measured in canvas's own unzoomed local pixels, not the
   // zoomed size actually painted on screen — using it directly here left
   // body far taller than the visible canvas, exposing its plain (unstriped)
