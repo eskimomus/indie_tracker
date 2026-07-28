@@ -8,6 +8,7 @@ from fastapi import FastAPI, Depends, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
+from sqlalchemy import func
 
 from database import init_db, get_session, get_db_path
 from models import Game, Finding
@@ -41,21 +42,25 @@ def on_startup():
 
 
 @app.get("/api/last-updated")
-def last_updated():
+def last_updated(session: Session = Depends(get_session)):
     """
-    mtime самого файла indie_tracker.db — и ручной collect_now.py, и
-    автосбор по расписанию пишут в него при каждом запуске, так что время
-    изменения файла — это и есть "когда обновлялась база", без отдельного
-    запроса к таблицам.
+    Берет дату последней записи из таблицы Finding или Game,
+    чтобы работать с любой базой данных (SQLite, PostgreSQL и др.).
     """
-    path = get_db_path()
-    if not path or not os.path.exists(path):
+    latest = session.exec(select(func.max(Finding.found_at))).first()
+    if not latest:
+        latest = session.exec(select(func.max(Game.updated_at))).first()
+    if not latest:
+        path = get_db_path()
+        if path and os.path.exists(path):
+            mtime = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
+            return {"last_updated": mtime.isoformat()}
         return {"last_updated": None}
-    # tz-aware on purpose: a naive isoformat() string (no +00:00 suffix)
-    # gets parsed by the browser's `new Date(...)` as local time, not UTC,
-    # silently throwing the "N ago" math off by the server's UTC offset.
-    mtime = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
-    return {"last_updated": mtime.isoformat()}
+
+    if latest.tzinfo is None:
+        latest = latest.replace(tzinfo=timezone.utc)
+
+    return {"last_updated": latest.isoformat()}
 
 
 @app.get("/api/ingest/run-now")
