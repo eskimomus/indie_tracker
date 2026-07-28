@@ -1,0 +1,33 @@
+# Python / Virtual Environment
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Environment variables & Secrets
+.env
+*.env
+!.env.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+indie_tracker.db
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.claude/
+.idea/
+.vscode/
+
+# Frontend backups / Temporary files
+*.backup-*
+*.bak
+*.tmp

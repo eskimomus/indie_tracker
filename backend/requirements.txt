@@ -1,0 +1,9 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+sqlmodel==0.0.22
+apscheduler==3.10.4
+google-api-python-client==2.144.0
+requests==2.32.3
+rapidfuzz==3.9.7
+python-dotenv==1.0.1
+beautifulsoup4==4.12.3

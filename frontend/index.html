@@ -1,0 +1,2820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" id="themeColorMeta" content="#415331">
+<title>eskimo's indie tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Darumadrop+One&display=swap" rel="stylesheet">
+<link rel="preload" href="assets/masks/ud-title.png?v=2" as="image">
+<link rel="preload" href="assets/masks/ud-opened.png?v=2" as="image">
+<link rel="preload" href="assets/masks/mv-title.png?v=2" as="image">
+<link rel="preload" href="assets/masks/mv-opened.png?v=2" as="image">
+<link rel="preload" href="assets/masks/contacts-cap.png?v=2" as="image">
+<link rel="preload" href="assets/masks/contacts-panel.png?v=2" as="image">
+<link rel="preload" href="assets/masks/header-fav-bg.png?v=2" as="image">
+<style>
+  /*
+    Theme colors live as CSS variables so a future "favorites" page
+    (different color scheme, per design spec) can override just this
+    block and reuse every component untouched.
+  */
+  :root {
+    --bg-base: #455934;
+    --bg-stripe: #415331;
+
+    --panel-dark: #1C2C21;
+    --pill-dim: #3C4732;
+    --pill-bright: #455339;
+
+    --badge-rank: #657D51;
+    --more-bg: #657D51;
+    --more-bg-hover: #7E966A;
+    --desc-bg: #1C2C21;
+    --desc-scroll-thumb: rgba(126, 150, 106, 0.60);
+    --badge-fav-inactive: #989794;
+    --badge-fav-active: #C14459;
+    --fav-heart-color: #DEDEDE;
+    --fav-heart-color-active: #FFFFFF;
+    --header-fav-heart: #FFFFFF;
+    /* header heart button's own background/active-fill, split off from
+       --pill-bright / --badge-fav-active (which it originally just
+       reused) so the favorites-page theme below can recolor the header
+       heart independently of the other header buttons and the per-row
+       favorite badges. */
+    --header-fav-bg: #455339;
+    --header-fav-heart-active: #C14459;
+
+    --divider-color: #24372A;
+    --refresh-bg: #FFFFFF;
+    --refresh-icon: #1C2C21;
+    --refresh-icon-hover: #455934;
+
+    --text: #FFFFFF;
+    --text-hover: #D5E0CB;
+    --text-muted: #97A188;
+    --option-muted: #818D77;
+    --option-hover: #B5C5A8;
+    --contact-label-inactive: #6B6B6B;
+
+    --star-color: #FFC400;
+    --cross-color: #BE4545;
+
+    --last-updated-color: #7D916B;
+
+    --eskimo-hover: #B5C5A8;
+    --web-hover: #A7B898;
+    --header-fav-heart-hover: #D5E0CB;
+  }
+
+  /* favorites-page palette — toggled by JS (`documentElement.classList.
+     toggle("favorites-theme", showingFavoritesOnly)`) alongside
+     #headerFav's own .active class, so it's active exactly when the page
+     title reads "favorites". Every other CSS rule keeps referencing the
+     same vars; only their values change here.
+     On <html>, not <body>: html and body both set their own `background`
+     (see below), and the special "canvas" backdrop that fills space no
+     element paints over is drawn from *html's* background specifically —
+     toggling this class on body left that backdrop stuck on the
+     un-overridden default (visible as a stray green diagonal band cutting
+     through the new maroon theme wherever #bgStripes' mask is transparent). */
+  html.favorites-theme {
+    --bg-base: #613437;
+    --bg-stripe: #533132;
+
+    --panel-dark: #2C1C1C;
+    --pill-dim: #653D40;
+    --pill-bright: #77494B;
+
+    --badge-rank: #875658;
+    --more-bg: #875658;
+    --more-bg-hover: #976365;
+    --desc-bg: #2C1C1C;
+    --desc-scroll-thumb: rgba(135, 86, 88, 0.60);
+    --refresh-bg: #FFF0F0;
+    --refresh-icon: #553133;
+    --refresh-icon-hover: #77494B;
+
+    --header-fav-bg: #FFF0F0;
+    --header-fav-heart-active: #77494B;
+
+    --divider-color: #2C1C1C;
+
+    --option-muted: #AF8888;
+    --option-hover: #DDB9B9;
+    --text-hover: #E0CBCB;
+
+    --last-updated-color: #916B6C;
+
+    --eskimo-hover: #E0CBCB;
+    --web-hover: #BAB591;
+    --header-fav-heart-hover: #94696B;
+  }
+
+  * { box-sizing: border-box; }
+
+  /* Smooth cross-fade whenever a themed color changes — right now that's
+     only the favorites-palette toggle above (html.favorites-theme), but
+     this covers any future theme swap the same way. Every themed color
+     lives in a CSS custom property consumed via var(); transitioning the
+     *consuming* property here (background-color/color/fill) still animates
+     smoothly across a custom-property change without needing to formally
+     register the custom property itself via @property — the browser just
+     recomputes the before/after used color for background-color et al. and
+     transitions between those like any other color change. Broad selector
+     rather than enumerating every themed rule individually, since the
+     themed vars feed dozens of unrelated selectors (panels, pills, badges,
+     dividers, dropdown text); paint-only properties, so this is compositor-
+     cheap and never triggers layout. */
+  *, *::before, *::after {
+    transition: background-color 0.3s ease, color 0.3s ease, fill 0.3s ease;
+  }
+
+  /* Every wobbly hand-drawn shape (panels, badges, buttons, dropdown
+     backgrounds) is a plain PNG alpha mask, not a live SVG filter — see
+     scripts/render-masks.py. Safari renders the feTurbulence/
+     feDisplacementMap "wobble" filter soft/blocky no matter how the SVG is
+     hosted or how the page is scaled; a raster mask has no filter left for
+     any engine to mis-render, and `background-color` still drives the
+     theme color so these stay recolorable for a future palette swap. */
+  .divider, .video-bg, .contacts-bg, #toolbarBg,
+  .badge-rank-inner, .badge-fav-inner, .fav-heart-mask, #applyBtnBg,
+  .play-btn-circle, .play-btn-triangle, .pill-bg, #udPanel .dd-bg,
+  .more-btn-back, .more-btn-symbol, .description-back {
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+
+  html, body {
+    margin: 0;
+    /* Only ever visible in two edge cases: a heavy-reflow repaint gap
+       before #bgBase/#bgStripes are composited in (e.g. hundreds of rows
+       unmounting when a filter empties the list), or Safari's rubber-band
+       overscroll dragging those fixed layers away from the viewport edge
+       further than their overhang covers (see #bgStripes below). Deliberately
+       --bg-stripe, not --bg-base: the ordinary gap-between-stripes color
+       is #bgBase's job now, so this fallback only has to look right for
+       those two rare glimpses, and the user wants *that* to read as "more
+       stripe" rather than "flat base color" at the top of the page. */
+    background: var(--bg-stripe);
+    /* user-select is inherited, so setting it here once covers literally
+       everything by default — page title, last-updated, header buttons,
+       rank badges, the video/thumbnail, contact icons/labels/star/cross
+       badges, the background gaps above and below the header, the side
+       vignette strips, all of it — without having to chase down every
+       individual chrome element that could otherwise still start a drag-
+       select. .row-head-title/.row-head-meta opt back into text below,
+       since those are actual content (a game's title, its view count)
+       the user does want to be able to select/copy. */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Both overflow axes live on html only — deliberately NOT on body at all,
+     on either axis (see body below). html is the actual root scroller here
+     (it specifies its own overflow, so per the standard html/body
+     overflow-propagation rule, body's overflow never propagates to the
+     viewport regardless of what body sets — html always wins once it has
+     an explicit value of its own).
+
+     overflow-y:scroll always reserves the vertical scrollbar's track, even
+     when the page is short enough not to need one yet. rescale() below
+     derives #canvas's whole zoom scale from window.innerWidth, and
+     innerWidth itself shrinks by the scrollbar's width whenever one is
+     present — on a system where the scrollbar takes up layout space
+     (reserved-space scrollbars; overlay scrollbars like default-config
+     macOS don't hit this) that makes the scrollbar's own presence and the
+     width rescale() measures mutually dependent: a filter combo landing
+     near the "content height ≈ viewport height" boundary can flip the
+     scrollbar on and off the DOM only ever settles one state at a time,
+     one filter change too late, so it visibly hunts between "just needs a
+     sliver of scroll" and "doesn't fit, needs more" without ever reaching
+     a stable size. Reserving the track permanently makes it a constant,
+     breaking that feedback loop.
+
+     overflow-x:hidden used to live on both html and body too (harmless on
+     its own), but that turned out to matter a lot in combination with the
+     bug above: giving body ANY explicit overflow-x, on its own, forces its
+     overflow-y to compute as auto instead of visible even when overflow-y
+     is left unset (per the CSS overflow spec, an element can't have one
+     axis visible and the other non-visible — the visible axis silently
+     becomes auto instead). Combined with body's height being set from JS
+     (see rescale()) to *approximate* #canvas's rendered height — and that
+     JS estimate vs. canvas's true on-screen height (post-zoom) differing
+     by a sub-pixel fraction that flips sign depending on window width
+     *and* total row count (verified directly: e.g. at 1277px wide, canvas
+     measured ~0.19px taller than the height JS had set on body) — body's
+     forced-auto overflow-y would occasionally have a fraction-of-a-pixel
+     of real overflow to scroll, and a wheel/trackpad gesture scroll-chains
+     to the nearest scrollable ancestor first: body's own near-zero scroll
+     range would silently capture the gesture, consume it within that
+     near-zero range, and only chain the remainder up to html once
+     exhausted. That's exactly "scroll moves the page a tiny bit and won't
+     page through further" — varying by width/row-count because the
+     sub-pixel rounding does. Moving overflow-x to html-only means body
+     never specifies overflow on either axis, so it just stays at the
+     initial visible/visible — no auto-forcing rule ever applies, and body
+     can't compete with html as a scroll target regardless of any future
+     rounding drift between its JS-set height and canvas's true size. */
+  html {
+    overflow-x: hidden;
+    overflow-y: scroll;
+  }
+
+  body {
+    font-family: "Darumadrop One", "Segoe UI", sans-serif;
+    color: var(--text);
+  }
+
+  /* fixed to the viewport (not a descendant of #canvas) so its size never
+     depends on how many rows are rendered — an angled repeating-gradient's
+     phase is computed from its own box dimensions, so anchoring it to
+     #canvas instead made the whole stripe pattern visibly jump every time
+     a filter changed the row count and thus canvas's height.
+     No z-index here on purpose: a z-index:-1 on this element let html/
+     body's own (fallback) background paint above it instead of below,
+     hiding the stripes entirely. Relying on plain DOM order instead — this
+     div and #bgBase both come before #canvas in markup, so #canvas
+     naturally paints over both with everything left at z-index:auto.
+     #bgBase is a second, identically-sized plain-color layer *behind*
+     this one, supplying the gap-between-stripes color — split out from
+     html/body's own background specifically so that background is free to
+     be a different color (see html, body above) without also recoloring
+     every gap in the normal, everyday view.
+     The stripe itself is a small tiled mask PNG (scripts/render-bg-
+     stripes.py), not a plain CSS gradient painted across the whole
+     element — Chromium shows a faint horizontal seam where it internally
+     tiles the rasterizer for a gradient painted this large, invisible
+     while content covered most of the viewport but obvious once a filter
+     (e.g. upload date = "today") leaves most of the background exposed.
+     Small tiled images don't hit that bug. It's a mask (not a plain
+     background-image) so --bg-stripe can still be swapped per-theme (see
+     html.favorites-theme above) instead of being baked into the PNG. */
+  #bgBase, #bgStripes {
+    /* overhangs the viewport on every side (rather than a plain inset:0)
+       as a cushion against Safari's rubber-band overscroll bug: Safari
+       drags `position:fixed` elements along with the whole page during
+       the bounce instead of holding them pinned to the viewport, so a
+       flush-fitted fixed layer briefly reveals bare page background above
+       the fold. The overhang keeps both layers in view through any
+       reasonably-sized bounce; only the flat html/body background (see
+       above) is left to cover bounces bigger than that. */
+    position: fixed;
+    inset: -400px;
+  }
+  #bgBase {
+    background-color: var(--bg-base);
+  }
+  #bgStripes {
+    background-color: var(--bg-stripe);
+    -webkit-mask-image: url(assets/masks/bg-stripes.png?v=2);
+    mask-image: url(assets/masks/bg-stripes.png?v=2);
+    -webkit-mask-repeat: repeat;
+    mask-repeat: repeat;
+    /* was 396px — widened to 659px (see scripts/render-bg-stripes.py) so
+       fewer, bigger stripes show on screen (4-5 instead of 7-8) */
+    -webkit-mask-size: 659px 659px;
+    mask-size: 659px 659px;
+    -webkit-mask-position: 0 0;
+    mask-position: 0 0;
+    /* 659px (one full tile — see mask-size above) at 30px/s = 21.97s per
+       loop. Sliding by exactly one tile period means the pattern lines up
+       identically with where it started, so the loop point is seamless —
+       this can run forever without ever visibly resetting or running out
+       of stripe, regardless of how long the page stays open. */
+    animation: bgStripesScroll 21.97s linear infinite;
+  }
+  @keyframes bgStripesScroll {
+    from { -webkit-mask-position: 0 0; mask-position: 0 0; }
+    to { -webkit-mask-position: 0 659px; mask-position: 0 659px; }
+  }
+
+  #canvas {
+    /* PAGE_SCALE (see rescale() below) can shrink this below the viewport's
+       own width now, unlike before when zoom always stretched it to fill
+       exactly edge-to-edge — margin:auto centers the leftover space evenly
+       instead of everything bunching up against the left edge. */
+    position: relative;
+    width: 1920px;
+    margin: 0 auto;
+    padding-bottom: 80px;
+  }
+
+  /* purely decorative side vignettes — inert to input (pointer-events:none
+     also makes them unselectable and click/hover-through, no separate
+     user-select rule needed). Siblings of #canvas (not children) and
+     position:fixed, same as #bgBase/#bgStripes/.fixed-ui-anchor.
+     Used to live *inside* #canvas instead, position:absolute with top:0/
+     bottom:0 stretched to canvas's own (content-driven) height — that
+     caused two separate problems: a short/empty page (e.g. favorites with
+     nothing saved yet) left canvas shorter than the real viewport, so the
+     vignette's bottom edge fell short of the screen instead of reaching
+     it; and for a long list, that height could run to tens of thousands
+     of pixels, painting this gradient across a box that large — visibly
+     failing to keep up mid-fast-scroll, the same class of rasterizer cost
+     that made #bgStripes switch to a small tiled mask instead of one
+     page-spanning gradient (see #bgStripes above). Fixed to the viewport
+     instead, its box is always exactly one screen tall no matter how long
+     the page is, so there's nothing left to fall short of or lag behind.
+     zoom (set in rescale(), not a JS-computed pixel width) keeps its width
+     proportional to the 1920px design at any window size — the same
+     trick, for the same reason, as .fixed-ui-anchor below: a static px
+     size here is in the element's own *local*, pre-zoom coordinate space,
+     so giving it the same zoom as #canvas reproduces the exact on-screen
+     width canvas's own content gets, without needing to be a descendant
+     of it. */
+  .page-vignette {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 311px;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.3;
+  }
+  /* more opaque edge sits at the page's own corner in both cases */
+  .page-vignette-left {
+    left: 0;
+    background: linear-gradient(to left, transparent 0%, #000000 100%);
+  }
+  .page-vignette-right {
+    right: 0;
+    background: linear-gradient(to right, transparent 0%, #000000 100%);
+  }
+
+  .page {
+    /* 1291, matching #toolbarWrap exactly (was 1293) — both are centered
+       independently within #canvas via margin:0 auto, so mismatched
+       widths meant their left edges landed half a px apart; rows need to
+       align exactly with the header now (see .row below) */
+    position: relative;
+    z-index: 1;
+    width: 1291px;
+    margin: 0 auto;
+    padding-top: 40px;
+  }
+
+  /* ---------------- toolbar ---------------- */
+  /* every offset below is taken verbatim from the 1920x1080 design spec,
+     measured from the header box (#toolbarArea, 1291x101) unless noted */
+
+  #toolbarWrap {
+    position: relative;
+    z-index: 2;
+    width: 1291px;
+    height: 351px;
+    margin: 0 auto;
+  }
+
+  #pageTitle {
+    /* height was 195px (95->0 = 15px gap to #toolbarArea below, which sits
+       at top:210px) — shortened by 20px so the same math lands on the
+       requested 35px gap instead: 210 - 175 = 35. Measured in-browser
+       first: for this particular title, the text's own line-box bottom
+       already coincides exactly with the box's bottom edge (align-items:
+       flex-end), so shrinking the box moves the visible text up by
+       exactly the same amount — no extra font-metric correction needed
+       here, unlike most other text in this file. */
+    position: absolute;
+    top: 0;
+    right: -2px;
+    height: 175px;
+    margin: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    font-weight: 400;
+    font-size: 90px;
+    color: var(--text);
+    white-space: nowrap;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  #pageTitle a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  #pageTitle a:hover {
+    color: var(--eskimo-hover, #B5C5A8);
+  }
+
+  #lastUpdated {
+    /* base position: -18px = its own box overlaps 18px up into #pageTitle's
+       box (175 - 18 = 157), per spec — not a font-metric correction like
+       most negative offsets elsewhere in this file. Raised another 8px on
+       top of that per a later request (157 - 8 = 149). */
+    position: absolute;
+    top: 149px;
+    right: 0;
+    margin: 0;
+    font-size: 35px;
+    color: var(--last-updated-color);
+    white-space: nowrap;
+  }
+
+  #toolbarArea {
+    position: absolute;
+    z-index: 1;
+    top: 210px;
+    left: 0;
+    width: 1291px;
+    height: 101px;
+  }
+  #toolbarBg {
+    position: absolute;
+    /* grown 6px/side to cover the 6px margin around the 1291x101 spec shape */
+    inset: -6px;
+    z-index: 0;
+    background-color: var(--panel-dark);
+    -webkit-mask-image: url(assets/masks/toolbar.png?v=2);
+    mask-image: url(assets/masks/toolbar.png?v=2);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+
+  /* "upload date" / "max. views" pills — back to three independently
+     positioned pieces (strip + title + arrow), per source: only the title
+     rect carries the wobble filter, so only it needs a PNG mask; the strip
+     and arrow are flat colors and are just plain CSS rounded rects. All
+     three are positioned in #toolbarArea-absolute coordinates (left/top
+     measured from the header box), derived from the same tight geometry
+     the combined-group experiment used (see scripts/render-masks.py). */
+  .pill-strip {
+    /* same top/height as .pill-title (upload date is the reference) —
+       every shape in the header, including this strip and the arrow
+       below, shares one horizontal line. top = (101 - 65.7831) / 2, so the
+       gap above and below every button is identical (vertically centered
+       in #toolbarArea rather than the old, slightly-off 17.22/18 split). */
+    position: absolute;
+    top: 17.60845px;
+    height: 65.7831px;
+    width: 125.12px;
+    border-radius: 16px;
+    background-color: var(--pill-dim);
+    z-index: 1;
+  }
+  .pill-bg {
+    position: absolute;
+    inset: -10px;
+    z-index: 2;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+  #udTitleBg {
+    background-color: var(--pill-bright);
+    -webkit-mask-image: url(assets/masks/ud-title.png?v=2);
+    mask-image: url(assets/masks/ud-title.png?v=2);
+    z-index: 15;
+  }
+  #udStripBg {
+    background-color: var(--pill-dim);
+    -webkit-mask-image: url(assets/masks/ud-strip.png?v=2);
+    mask-image: url(assets/masks/ud-strip.png?v=2);
+    z-index: 1;
+  }
+  #udArrowBg {
+    background-color: var(--pill-bright);
+    -webkit-mask-image: url(assets/masks/ud-arrow.png?v=2);
+    mask-image: url(assets/masks/ud-arrow.png?v=2);
+    z-index: 2;
+  }
+  #mvTitleBg {
+    background-color: var(--pill-bright);
+    -webkit-mask-image: url(assets/masks/mv-title.png?v=2);
+    mask-image: url(assets/masks/mv-title.png?v=2);
+    z-index: 15;
+  }
+  #mvStripBg {
+    background-color: var(--pill-dim);
+    -webkit-mask-image: url(assets/masks/mv-strip.png?v=2);
+    mask-image: url(assets/masks/mv-strip.png?v=2);
+    z-index: 1;
+  }
+  #mvArrowBg {
+    background-color: var(--pill-bright);
+    -webkit-mask-image: url(assets/masks/mv-arrow.png?v=2);
+    mask-image: url(assets/masks/mv-arrow.png?v=2);
+    z-index: 2;
+  }
+  #udStrip {
+    left: 253.34px;
+    width: 116px;
+    height: 65px;
+    background-color: transparent;
+    border-radius: 0;
+    z-index: auto;
+  }
+  #mvStrip {
+    left: 597.4px;
+    width: 125px;
+    height: 65px;
+    background-color: transparent;
+    border-radius: 0;
+    z-index: auto;
+  }
+
+  /* plain flat rounded rect, no wobble/mask — see the comment on .dd-wrap
+     below for why this whole family of shapes dropped the raster-mask
+     approach */
+  .pill-title {
+    position: absolute;
+    top: 17.60845px;
+    height: 65.7831px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    background-color: var(--pill-bright);
+    border-radius: 16px;
+  }
+  .pill-title span, #contactsTitle span {
+    /* Darumadrop One's line box reserves far more space below the
+       baseline than the glyphs actually use, so flex-centering the line
+       box (as opposed to the visible ink) leaves the text looking too low
+       — nudge up by the measured ink/line-box center offset at 45px
+       (fontBoundingBox 52/13 vs actualBoundingBox ~29/6) to compensate,
+       then back down 3px per user request. */
+    position: relative;
+    top: -4.8px;
+  }
+  .pill-title span { font-size: 45px; color: var(--text); white-space: nowrap; }
+  #udTitle {
+    left: 18px;
+    width: 288px;
+    height: 65px;
+    background-color: transparent;
+    border-radius: 0;
+    z-index: auto;
+  }
+  #udTitle span, #udArrow .arrow-icon, #mvTitle span, #mvArrow .arrow-icon, #contactsTitle span {
+    position: relative;
+    z-index: 20;
+  }
+  #mvTitle {
+    left: 407.4px;
+    width: 256px;
+    height: 65px;
+    background-color: transparent;
+    border-radius: 0;
+    z-index: auto;
+  }
+
+  .pill-arrow {
+    /* same top/height as .pill-title — see .pill-strip above */
+    position: absolute;
+    top: 17.60845px;
+    height: 65.7831px;
+    width: 67px;
+    border-radius: 16px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    background-color: var(--pill-bright);
+  }
+  .pill-arrow .arrow-icon {
+    display: block;
+    width: 25px;
+    height: 14px;
+    transform: rotate(0deg);
+    transition: transform 0.35s ease;
+  }
+  .pill-arrow.dir-desc .arrow-icon { transform: rotate(180deg); }
+  #udArrow {
+    left: 314px;
+    width: 67px;
+    height: 65px;
+    background-color: transparent;
+    border-radius: 0;
+    z-index: auto;
+  }
+  #mvArrow {
+    left: 672.4px;
+    width: 67px;
+    height: 65px;
+    background-color: transparent;
+    border-radius: 0;
+    z-index: auto;
+  }
+
+  #contactsTitle {
+    position: absolute;
+    left: 764px;
+    top: 17.60845px;
+    height: 65px;
+    width: 414px;
+    z-index: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    background-color: transparent;
+    border-radius: 0;
+  }
+  #contactsCapBg {
+    background-color: var(--pill-bright);
+    -webkit-mask-image: url(assets/masks/contacts-cap.png?v=2);
+    mask-image: url(assets/masks/contacts-cap.png?v=2);
+    z-index: 15;
+  }
+  #contactsTitle span { font-size: 45px; color: var(--text); white-space: nowrap; }
+
+  #udTitle:hover span,
+  #mvTitle:hover span,
+  #contactsTitle:hover span {
+    color: var(--text-hover);
+  }
+
+  /* Opened dropdown = the closed plate extended straight down, per the
+     user's reference mockup — not a separate asset. The wrap is fixed at
+     top/left/width (exactly matching the closed title/cap above it) and
+     sized by ordinary box flow instead of a hardcoded height: padding-top
+     clears the title (+4px to the first option), the options list flows
+     normally beneath it, and padding-bottom (20px) is the run-off below
+     the last option. .dd-bg just fills whatever height that adds up to.
+     No filter, no mask, no per-instance PNG — every one of these shapes
+     used to be hand-drawn/wobbly and rasterized (see the now-removed
+     entries in scripts/render-masks.py); that's what kept causing edge
+     artifacts and seams between the closed pill and the opened panel, so
+     per the user's call this whole family is back to plain flat CSS. */
+  .dd-wrap[hidden] { display: none; }
+  .dd-wrap {
+    position: absolute;
+    z-index: 1;
+    padding-bottom: 20px;
+  }
+  #udPanel {
+    left: 18px;
+    top: 40.61px;
+    width: 288px;
+    padding-top: 46.8px;
+    padding-bottom: 25px;
+    z-index: 10;
+  }
+  #mvPanel {
+    left: 407.4px;
+    top: 50.61px;
+    width: 256px;
+    padding-top: 36.8px;
+    padding-bottom: 25px;
+    z-index: 10;
+  }
+  #contactsPanel {
+    left: 764px;
+    top: 32.61px;
+    width: 414px;
+    padding-top: 54.8px;
+    padding-bottom: 25px;
+    z-index: 10;
+  }
+
+  .dd-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-color: var(--pill-bright);
+    border-radius: 16px;
+  }
+  #udPanel .dd-bg {
+    inset: -10px;
+    -webkit-mask-image: url(assets/masks/ud-opened.png?v=2);
+    mask-image: url(assets/masks/ud-opened.png?v=2);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    border-radius: 0;
+  }
+  #mvPanel .dd-bg {
+    inset: -10px;
+    -webkit-mask-image: url(assets/masks/mv-opened.png?v=2);
+    mask-image: url(assets/masks/mv-opened.png?v=2);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    border-radius: 0;
+  }
+  #contactsPanel .dd-bg {
+    inset: -10px;
+    -webkit-mask-image: url(assets/masks/contacts-panel.png?v=2);
+    mask-image: url(assets/masks/contacts-panel.png?v=2);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    border-radius: 0;
+  }
+  .dd-options {
+    /* normal (relative, not absolute) flow so the options list's own
+       height is what drives .dd-wrap's auto height above; `left` still
+       works for the label-alignment nudge from alignOptionsToLabel() */
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    /* without this, flex's default align-items:stretch makes every option
+       row as wide as the widest one ("last 14 days"), so short labels like
+       "today" get a hover/click hitbox stretching way past their own text */
+    align-items: flex-start;
+    gap: 4px;
+    font-size: 45px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .dd-option {
+    /* tight, fixed hover/click box instead of relying on the font's own
+       (much taller) natural line-height — flex-centers the text so the
+       box hugs the visible glyphs on both sides, with the gap above
+       providing genuine dead space between rows that belongs to neither */
+    height: 40px;
+    display: flex;
+    align-items: center;
+    color: var(--option-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.1s ease;
+  }
+  .dd-option.selected { color: var(--text); }
+  .dd-option:not(.selected):hover { color: var(--option-hover); }
+  .dd-option-contact .star {
+    /* flows right after the label instead of a fixed offset from the row's
+       own corner, so it lands at top-right of the text regardless of how
+       long the word is; align-self overrides the row's own
+       align-items:center to push it up toward the text's cap-height */
+    display: block;
+    width: 23px;
+    height: 23px;
+    margin-left: 4px;
+    align-self: flex-start;
+  }
+
+  #headerFav {
+    position: absolute;
+    right: 18px;
+    top: 17.60845px;
+    height: 65px;
+    width: 67px;
+    z-index: auto;
+    cursor: pointer;
+    background-color: transparent;
+    border-radius: 0;
+  }
+  #headerFavBg {
+    background-color: var(--header-fav-bg);
+    -webkit-mask-image: url(assets/masks/header-fav-bg.png?v=2);
+    mask-image: url(assets/masks/header-fav-bg.png?v=2);
+    z-index: 15;
+  }
+  #headerFav .heart {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 31px; height: 27px;
+    z-index: 20;
+  }
+  #headerFav.active .header-fav-heart-fill { fill: var(--header-fav-heart-active); }
+  #headerFav:hover .header-fav-heart-fill { fill: var(--header-fav-heart-hover); }
+
+  /* ---------------- rows ---------------- */
+
+  /* opacity-only cross-fade when a filter/sort actually swaps the list's
+     contents (see render()'s resetView path in the script below) — not a
+     per-row stagger, just the whole list fading out then back in around
+     the instant content swap, so it never looks like the page snapped.
+     fadeRowsOut and fadeRowsIn run one after the other (not at the same
+     time), so the full out-then-in cycle takes 2x this duration — 0.25s
+     here adds up to ~0.5s total.
+     linear, not ease: measured both phases directly (transitionend
+     timestamps) and they already ran the same duration each with no gap
+     between them — the "fade in feels quicker" read wasn't a timing bug,
+     it's `ease`'s own curve. `ease` decelerates hard into its end in both
+     directions, so fading in, opacity rushes up early and then just
+     lingers near-full for the back half (reads as "snapped in, then
+     nothing happens"), while fading out it drops out early and lingers
+     near-zero (the perceptible vanishing is bunched into the front half).
+     Same total duration, unevenly distributed, in mirrored ways — linear
+     spreads the visible change evenly across the whole duration in both
+     directions instead.
+     In Safari (WebKit CoreAnimation), when a container (.rows) transitions
+     opacity, any descendant with a positive z-index (.badge-rank, .badge-fav
+     at z-index: 2) and -webkit-mask-image is promoted to a composited CALayer.
+     Without an explicit stacking context and group-opacity hardware layer on
+     .rows (and .row / .video-wrap), WebKit hoists those badge CALayers out of
+     the .rows opacity hierarchy to the nearest enclosing stacking context (.page),
+     causing them to escape the fade transition and remain 100% opaque while
+     the rest of the row fades out.
+     Establishing explicit stacking contexts (z-index: 1, isolation: isolate)
+     and hardware-accelerated layer groups (translate3d(0,0,0), will-change: opacity)
+     on .rows, .row, and .video-wrap traps all child CALayers inside the .rows
+     group layer so the entire interface fades cleanly together in Safari. */
+  .rows {
+    display: flex;
+    flex-direction: column;
+    transition: opacity 0.25s linear;
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    will-change: opacity;
+  }
+
+  /* row width now matches the header exactly (1291, was 1293) — see
+     .page above. Every vertical gap below is expressed as plain
+     margin-bottom on the *earlier* element only (never margin-top on the
+     next one), so normal block-flow margin collapsing never comes into
+     play between them. */
+  .row {
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    width: 1291px;
+    margin-bottom: 40px;
+  }
+
+  .row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-left: 72px;
+    /* 8px from the text's own bottom edge to top-line's *visible* top
+       edge, minus the 1.5px of transparent margin baked into the divider
+       mask itself (see .divider below) — 8 - 1.5 = 6.5 */
+    margin-bottom: 6.5px;
+    gap: 24px;
+  }
+  .row-head-title {
+    font-size: 35px;
+    overflow: hidden;
+    white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+    /* no text-overflow:ellipsis — the browser's own ellipsis glyph doesn't
+       reliably exist in Darumadrop One, so it silently fell back to
+       another font just for that one character, rendering it as a
+       mismatched, oddly-raised cluster of dots instead of sitting on the
+       same baseline as the rest of the (Darumadrop) title. fitRowTitle()
+       in the script below truncates the text itself and appends a literal
+       "..." — plain periods, which the font *does* have — so the ellipsis
+       renders in-font on the same line as everything else. overflow:
+       hidden stays only as a safety net for the instant before that JS
+       runs. */
+  }
+  /* opts back into selection out of the blanket user-select:none on html,
+     body above — a game's title and its view count/date are actual
+     content, unlike the surrounding chrome, and the user does want those
+     selectable/copyable. */
+  .row-head-title, .row-head-meta {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  .row-head-title a { color: var(--text); text-decoration: none; transition: color 0.2s ease; }
+  .row-head-title a:hover { text-decoration: none; color: var(--text-hover); }
+  .row-head-meta {
+    font-size: 35px;
+    color: var(--text);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* shared by both the top and bottom line: visible rect is 1291x17, but
+     the mask's own canvas is 1294x20 (1.5px transparent margin on every
+     side, for the wobble filter to displace into — same shape/mask as
+     every other divider on the page). width is the canvas size, and
+     margin-left shifts the box left by that same 1.5px so the *visible*
+     rect still lands exactly on the row's 0..1291 span rather than the
+     canvas's (slightly wider) bounds. */
+  .divider {
+    width: 1294px;
+    height: 20px;
+    margin-left: -1.5px;
+    background-color: var(--divider-color);
+    opacity: 0.66;
+    -webkit-mask-image: url(assets/masks/divider.png);
+    mask-image: url(assets/masks/divider.png);
+  }
+  /* 13px from top-line's visible bottom to row-media's top, minus the
+     1.5px transparent margin already counted on the way in = 11.5 */
+  .divider-top { margin-bottom: 11.5px; }
+  /* nothing extra here — the gap to the next row is just .row's own
+     margin-bottom plus this divider's trailing 1.5px, and nobody's asked
+     for that to be a specific number */
+  .divider-bottom { margin-bottom: 0; }
+
+  .divider-bottom-container {
+    position: relative;
+    width: 1291px;
+    z-index: 10;
+  }
+  .more-btn {
+    position: absolute;
+    left: -34px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 67px;
+    height: 67px;
+    cursor: pointer;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .more-btn-back {
+    position: absolute;
+    inset: 0;
+    background-color: var(--more-bg);
+    -webkit-mask-image: url(assets/masks/more-back.png?v=2);
+    mask-image: url(assets/masks/more-back.png?v=2);
+    transition: background-color 0.25s ease;
+  }
+  .more-btn:hover .more-btn-back {
+    background-color: var(--more-bg-hover);
+  }
+  .more-btn-symbol {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 26px;
+    height: 26px;
+    background-color: var(--text);
+    -webkit-mask-image: url(assets/masks/more-symbol.png?v=2);
+    mask-image: url(assets/masks/more-symbol.png?v=2);
+    transform: translate(-50%, -50%) rotate(0deg);
+    transition: transform 0.3s cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  .more-btn.open .more-btn-symbol {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  .row-description-wrap {
+    height: 0;
+    overflow: hidden;
+    transition: height 0.5s cubic-bezier(0.45, 0, 0.55, 1) 0.15s;
+  }
+  /* height itself is set inline by the more-toggle click handler (script
+     below), reading wrap.dataset.openHeight — computed per-row by
+     fitRowDescription() to match whichever description-N backdrop that
+     row's actual line count needs, instead of one fixed height for every
+     row's description regardless of length. */
+  .row-description-wrap.open {
+    transition: height 0.5s cubic-bezier(0.45, 0, 0.55, 1) 0s;
+  }
+  .row-description-content {
+    opacity: 0;
+    transition: opacity 0.2s ease 0s;
+    /* gap from .divider-bottom (above, outside this wrap) down to the
+       description backdrop's own visible top edge — kept in sync with
+       DESC_WRAP_EXTRA in the script below. width matches .row's own
+       1291px exactly (no offset needed) — the description-N masks are
+       1291 wide themselves, see scripts/render-masks.py's comment on
+       that shape list for why this used to be 1294/-1.5px and got
+       clipped by .row-description-wrap's overflow:hidden. */
+    padding-top: 13px;
+    width: 1291px;
+  }
+  .row-description-wrap.open .row-description-content {
+    opacity: 1;
+    transition: opacity 0.25s ease 0.25s;
+  }
+  .description-box {
+    /* height set per-row by fitRowDescription() in the script below —
+       matches whichever description-N backdrop (see .description-back)
+       fits that row's actual line count, instead of one fixed size for
+       every row regardless of description length. margin-bottom is the
+       gap from the backdrop's own visible bottom edge down to
+       .divider-bottom-extra below — kept in sync with DESC_WRAP_EXTRA in
+       the script below. */
+    position: relative;
+    width: 100%;
+    margin-bottom: 13px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 16px 20px 20px 37px;
+    box-sizing: border-box;
+  }
+  .description-back {
+    /* -3px, not 0: description-N.png's own margin (6px design px) is
+       baked into its canvas the same way video-bg/contacts-bg/toolbarBg
+       grow outward from their visible box — matches those, see the
+       comment in scripts/render-masks.py. mask-image itself is set per-row
+       by fitRowDescription() (one of 10 backdrops, by line count), not a
+       single fixed image. */
+    position: absolute;
+    inset: -6px;
+    background-color: var(--desc-bg, #1C2C21);
+    opacity: 0.6;
+  }
+  .description-text {
+    /* max-height set per-row by fitRowDescription() — however many lines
+       (up to 10) that row's own description needs; --desc-fade-start/
+       --desc-fade-end (also set there) position the bottom fade-out 19px
+       above whatever that row's own max-height is, since it now varies
+       per row instead of being one fixed 124px for everyone. */
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    overflow-y: auto;
+    text-align: left;
+    font-size: 30px;
+    line-height: 35px;
+    color: var(--text);
+    padding-right: 43px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-mask-image:
+      linear-gradient(to bottom, #000 0%, #000 var(--desc-fade-start, 105px), rgba(0, 0, 0, 0) var(--desc-fade-end, 124px)),
+      linear-gradient(to bottom, #000 0%, #000 100%);
+    -webkit-mask-size: calc(100% - 30px) 100%, 30px 100%;
+    -webkit-mask-position: left top, right top;
+    -webkit-mask-repeat: no-repeat, no-repeat;
+    mask-image:
+      linear-gradient(to bottom, #000 0%, #000 var(--desc-fade-start, 105px), rgba(0, 0, 0, 0) var(--desc-fade-end, 124px)),
+      linear-gradient(to bottom, #000 0%, #000 100%);
+    mask-size: calc(100% - 30px) 100%, 30px 100%;
+    mask-position: left top, right top;
+    mask-repeat: no-repeat, no-repeat;
+  }
+  .description-text.scrolled {
+    -webkit-mask-image:
+      linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, #000 19px, #000 var(--desc-fade-start, 105px), rgba(0, 0, 0, 0) var(--desc-fade-end, 124px)),
+      linear-gradient(to bottom, #000 0%, #000 100%);
+    mask-image:
+      linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, #000 19px, #000 var(--desc-fade-start, 105px), rgba(0, 0, 0, 0) var(--desc-fade-end, 124px)),
+      linear-gradient(to bottom, #000 0%, #000 100%);
+  }
+  .description-text.at-bottom {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .description-text.scrolled.at-bottom {
+    -webkit-mask-image: 
+      linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, #000 19px, #000 100%),
+      linear-gradient(to bottom, #000 0%, #000 100%);
+    mask-image: 
+      linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, #000 19px, #000 100%),
+      linear-gradient(to bottom, #000 0%, #000 100%);
+  }
+  .description-text::-webkit-scrollbar {
+    width: 9px;
+  }
+  .description-text::-webkit-scrollbar-track {
+    background: transparent;
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+  .description-text::-webkit-scrollbar-thumb {
+    background-color: var(--desc-scroll-thumb);
+    border-radius: 4px;
+  }
+  .description-text::-webkit-scrollbar-thumb:hover {
+    background-color: var(--desc-scroll-thumb);
+  }
+  .divider-bottom-extra {
+    /* was margin-left: 0 back when .row-description-content was still
+       1294px wide (flush with this divider's own 1294px canvas, no offset
+       needed) — now that content column is 1291px (see the description-N
+       width fix), this needs the same -1.5px centering offset every other
+       .divider on the page already gets, or its last ~3px overflow past
+       the new, narrower parent gets clipped by .row-description-wrap's
+       overflow:hidden. */
+    margin-bottom: 0;
+  }
+
+  /* video-wrap (884) + gap (16) + contacts-wrap (391) = 1291, so the
+     contacts side lands exactly on the row's right edge with no extra
+     positioning needed — see the width comment on .video-wrap below */
+  .row-media { display: flex; gap: 16px; margin-bottom: 11.5px; }
+
+  .video-wrap {
+    /* tight/visible size now (was 888x438, the mask's old padded-canvas
+       size) — .video-bg below grows outward from this by its own margin,
+       and .video-thumb insets inward from it, so this needs to be the
+       true visible bounds for both to land correctly */
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    width: 884px;
+    height: 509px;
+    flex: 0 0 auto;
+  }
+  .video-bg {
+    position: absolute;
+    /* grown 6px/side, same reasoning as #toolbarBg above */
+    inset: -6px;
+    background-color: var(--panel-dark);
+    -webkit-mask-image: url(assets/masks/video.png);
+    mask-image: url(assets/masks/video.png);
+  }
+
+  .video-thumb {
+    /* centered at 859x484 within the 884x509 video-wrap per spec — equal
+       12.5px inset on every side lands exactly on that size */
+    position: absolute;
+    inset: 12.5px;
+    z-index: 1;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #000;
+  }
+  .video-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .video-thumb iframe { width: 100%; height: 100%; border: 0; display: block; }
+  /* shown instead of the player when YouTube itself refuses to embed a
+     given video (owner disabled embedding, region lock, etc.) — the
+     player is otherwise a silent black rectangle with no indication
+     anything went wrong, see the click handler below. */
+  .video-thumb .embed-error {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px;
+    text-align: center;
+    padding: 0 40px;
+    color: var(--text);
+    font-size: 24px;
+  }
+  .video-thumb .embed-error a {
+    color: var(--text);
+    font-size: 26px;
+  }
+  .video-thumb .play-btn {
+    /* 118x118 canvas per the Figma export; the visible circle inside it
+       (r=55, i.e. 110px diameter) is the actual "110x110" from spec — same
+       margin-for-wobble convention as fav-circle/rank-circle, just already
+       baked into the source export instead of computed here. */
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 118px; height: 118px;
+    pointer-events: none;
+  }
+  .video-thumb img { filter: brightness(0.9); }
+  .video-thumb::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: 12px;
+    box-shadow: inset 0 0 10px 2px rgba(0, 0, 0, 0.25);
+    z-index: 5;
+  }
+  .video-thumb .play-btn::before {
+    content: "";
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    box-shadow: 0 0 10px 2px rgba(0, 0, 0, 0.25);
+    z-index: -1;
+  }
+  .play-btn-circle, .play-btn-triangle {
+    position: absolute;
+    inset: 0;
+  }
+  .play-btn-circle {
+    background-color: var(--badge-rank);
+    -webkit-mask-image: url(assets/masks/play-circle.png);
+    mask-image: url(assets/masks/play-circle.png);
+  }
+  .play-btn-triangle {
+    background-color: var(--text);
+    -webkit-mask-image: url(assets/masks/play-triangle.png);
+    mask-image: url(assets/masks/play-triangle.png);
+  }
+
+  .badge-rank, .badge-fav {
+    position: absolute;
+    left: -56px;
+    z-index: 10;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+  .badge-rank { top: -56px; width: 111px; height: 111px; }
+  .badge-fav { top: 58.5px; width: 112px; height: 112px; cursor: pointer; }
+
+  .badge-rank-inner, .badge-fav-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  .badge-rank-inner {
+    background-color: var(--badge-rank);
+    -webkit-mask-image: url(assets/masks/rank-circle.png);
+    mask-image: url(assets/masks/rank-circle.png);
+  }
+  .badge-fav-inner {
+    background-color: var(--badge-fav-inactive);
+    -webkit-mask-image: url(assets/masks/fav-circle.png);
+    mask-image: url(assets/masks/fav-circle.png);
+    transition: background-color 0.3s ease;
+  }
+  .badge-fav:not(.active):hover .badge-fav-inner {
+    background-color: #B0AFA9;
+  }
+  .badge-fav.active .badge-fav-inner { background-color: var(--badge-fav-active); }
+  .badge-fav.active:hover .badge-fav-inner { background-color: #D15167; }
+  .badge-fav.active .fav-heart-mask { background-color: var(--fav-heart-color-active); }
+  .badge-rank-num {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 45px;
+    transform: translateY(-7px);
+  }
+  .fav-heart-mask {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 47px; height: 41px;
+    background-color: var(--fav-heart-color);
+    -webkit-mask-image: url(assets/masks/fav-heart.png?v=2);
+    mask-image: url(assets/masks/fav-heart.png?v=2);
+    transition: background-color 0.3s ease;
+  }
+  .badge-fav:not(.active):hover .fav-heart-mask {
+    background-color: #FFFFFF;
+  }
+
+  .contacts-wrap {
+    /* tight/visible size now (was 397x438, the mask's old padded-canvas
+       size) — same reasoning as .video-wrap above */
+    position: relative;
+    z-index: 1;
+    isolation: isolate;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    width: 391px;
+    height: 509px;
+    flex: 0 0 auto;
+  }
+  .contacts-bg {
+    position: absolute;
+    /* grown 6px/side, same reasoning as #toolbarBg above */
+    inset: -6px;
+    background-color: var(--panel-dark);
+    -webkit-mask-image: url(assets/masks/contacts-bg.png);
+    mask-image: url(assets/masks/contacts-bg.png);
+  }
+
+  #toolbarBg,
+  #udPanel .dd-bg, #mvPanel .dd-bg, #contactsPanel .dd-bg,
+  .divider,
+  .video-bg,
+  .contacts-bg {
+    filter: drop-shadow(0 13px 10px rgba(0, 0, 0, 0.10));
+  }
+
+  /* 5 rows x 79px icons + 4 gaps x 16px = 459; contacts-wrap is 509 tall,
+     so the 50px left over splits evenly to 25px top/bottom padding —
+     replaces the old justify-content:space-evenly (which just spread
+     whatever space was left however the flexbox algorithm saw fit) with
+     an exact, spec'd gap instead. */
+  .contacts-list {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 25px 30px;
+  }
+  .contact-row { display: flex; align-items: center; gap: 18px; }
+  .contact-row a { display: flex; align-items: center; gap: 18px; text-decoration: none; color: inherit; }
+  .contact-icon-wrap { position: relative; width: 79px; height: 79px; flex: 0 0 auto; }
+  .contact-icon-wrap .icon { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .contact-icon-wrap .badge {
+    /* top-left now (was top-right) — offset keeps the same proportion of
+       the badge sitting inside vs. outside the icon as the old
+       top:-10px/26px badge did, scaled up to the new 32px size */
+    position: absolute; top: -12px; left: -12px;
+    display: block;
+  }
+  .contact-icon-wrap .badge-cross { width: 32px; height: 32px; }
+  .contact-icon-wrap .badge-star { width: 39px; height: 37px; }
+  .contact-label {
+    /* same Darumadrop One ink/line-box story as .pill-title span — flex
+       align-items:center centers the font's oversized natural line box,
+       not the visible ink, so text sits visibly low against its icon
+       without this. Measured directly per-label (canvas
+       actualBoundingBoxAscent/Descent vs the icon's true center); -6px is
+       the consensus across steam/discord/insta/web (single-letter "x",
+       with no ascender/descender at all, wants closer to -9px, but a
+       shared constant close to the other four reads better overall). */
+    position: relative;
+    top: -6px;
+    font-size: 45px;
+    color: var(--text);
+  }
+  .contact-row.missing .contact-label { color: var(--contact-label-inactive); }
+
+  .contact-row-steam a:hover .contact-label { color: #8A96B8; }
+  .contact-row-discord a:hover .contact-label { color: #BCB2E3; }
+  .contact-row-twitter a:hover .contact-label { color: #899EBA; }
+  .contact-row-insta a:hover .contact-label { color: #D298A2; }
+  .contact-row-web a:hover .contact-label { color: var(--web-hover, #A7B898); }
+
+  .empty-state {
+    color: var(--text-muted);
+    font-size: 22px;
+    text-align: center;
+    padding: 80px 0;
+  }
+  /* favorites-empty variant only ("you don't love anything. heartless.") —
+     "Nothing matches the current filter." keeps the plain .empty-state
+     look above. Centered between the header's bottom edge and the real
+     screen bottom: height is set in rescale() (see the script below),
+     since that span depends on the actual viewport height, which isn't
+     knowable from a static CSS value here (this box lives inside the
+     zoomed #canvas subtree, and .page's own padding-top already eats into
+     part of that span before this element even starts). flex centering
+     within that height does the rest. Declared after .empty-state so its
+     rules win over that rule's `padding`/`text-align` for an element
+     carrying both classes. */
+  .empty-state-favorites {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: var(--text);
+    font-size: 35px;
+  }
+
+  /* ---------------- apply-contacts button ---------------- */
+
+  .apply-btn {
+    position: absolute;
+    left: 1321px;
+    top: 11px;
+    width: 79px;
+    height: 79px;
+    border-radius: 24px;
+    box-shadow: 0 13px 10px -6px rgba(0, 0, 0, 0.10);
+    z-index: -1;
+    cursor: pointer;
+    transform: translate3d(0, 0, 0);
+    transition: transform 0.65s cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  .apply-btn.is-hidden {
+    transform: translate3d(-110px, 0, 0);
+    pointer-events: none;
+    transition: transform 0.45s cubic-bezier(0.7, 0, 0.84, 0);
+  }
+  #applyBtnBg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--refresh-bg);
+    -webkit-mask-image: url(assets/masks/refresh-back-new.png?v=3);
+    mask-image: url(assets/masks/refresh-back-new.png?v=3);
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+  .apply-btn .icon {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 38px;
+    height: 38px;
+    overflow: visible;
+    transform-origin: 50% 50%;
+    animation: refreshSpinOut 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .apply-btn.is-hidden .icon {
+    animation: refreshSpinIn 0.45s cubic-bezier(0.7, 0, 0.84, 0) forwards;
+  }
+  .apply-btn .icon path {
+    stroke: var(--refresh-icon);
+    stroke-width: 8px;
+    vector-effect: non-scaling-stroke;
+    transition: stroke 0.2s ease;
+  }
+  .apply-btn:hover .icon path {
+    stroke: var(--refresh-icon-hover);
+  }
+  @keyframes refreshSpinOut {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(-365deg); }
+  }
+  @keyframes refreshSpinIn {
+    0% { transform: rotate(-365deg); }
+    100% { transform: rotate(-730deg); }
+  }
+
+  /* Preloader */
+  #preloader {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #415331;
+    z-index: 99999;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+    transition: -webkit-transform 0.65s cubic-bezier(0.7, 0, 0.84, 0), transform 0.65s cubic-bezier(0.7, 0, 0.84, 0);
+    pointer-events: auto;
+  }
+  #preloader.hide {
+    -webkit-transform: translate3d(0, 100%, 0);
+    transform: translate3d(0, 100%, 0);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="preloader"></div>
+
+<div id="bgBase"></div>
+<div id="bgStripes"></div>
+
+<div id="canvas">
+  <div id="toolbarWrap">
+    <h1 id="pageTitle"><a href="https://eskimus.com" target="_blank" rel="noopener">eskimo's</a>&nbsp;indie tracker</h1>
+    <p id="lastUpdated"></p>
+
+    <div id="toolbarArea">
+      <div class="apply-btn is-hidden" id="applyContactsBtn" title="Apply preferred contacts">
+        <div id="applyBtnBg"></div>
+        <img class="icon" id="applyBtnIcon" alt="">
+      </div>
+      <div id="toolbarBg"></div>
+
+      <div class="pill-strip" id="udStrip"><div class="pill-bg" id="udStripBg"></div></div>
+      <div class="pill-title" id="udTitle" data-action="toggle-period"><div class="pill-bg" id="udTitleBg"></div><span>upload date</span></div>
+      <div class="pill-arrow" id="udArrow" data-action="sort-date">
+        <div class="pill-bg" id="udArrowBg"></div>
+        <svg class="arrow-icon" viewBox="0 0 25 14" xmlns="http://www.w3.org/2000/svg">
+          <path d="M13.55 0.349997C13.7833 0.48333 14.0167 0.63333 14.25 0.799997C14.45 0.93333 14.6833 1.08333 14.95 1.25C15.7167 1.61666 16.35 2.11666 16.85 2.75C17.15 3.08333 17.45 3.38333 17.75 3.65C18.05 3.91666 18.4 4.13333 18.8 4.3C19.3333 4.76666 19.8833 5.23333 20.45 5.7C21.0167 6.13333 21.5833 6.58333 22.15 7.05C22.35 7.21666 22.5333 7.4 22.7 7.6C22.8667 7.76666 23.0667 7.91666 23.3 8.05C23.4333 8.08333 23.5667 8.2 23.7 8.4C23.9 8.63333 24.1 8.85 24.3 9.05C24.4667 9.25 24.65 9.46666 24.85 9.7C24.8167 9.76666 24.7833 9.85 24.75 9.95C24.7167 10.05 24.6667 10.1333 24.6 10.2C24.4667 10.3667 24.3333 10.5333 24.2 10.7C24.0333 10.8667 23.8833 11.05 23.75 11.25C23.5833 11.55 23.4 11.8167 23.2 12.05C22.9667 12.25 22.7333 12.4333 22.5 12.6C22.3333 12.7333 22.15 12.8667 21.95 13C21.75 13.1 21.55 13.2333 21.35 13.4C21.1167 13.3333 20.8833 13.2667 20.65 13.2C20.3833 13.1 20.1333 13.0333 19.9 13C19.6333 12.6333 19.35 12.3 19.05 12C18.7167 11.6667 18.3833 11.3833 18.05 11.15C17.95 10.95 17.85 10.7667 17.75 10.6C17.65 10.4 17.5667 10.2 17.5 10C17.3333 9.86666 17.1667 9.75 17 9.65C16.8333 9.51666 16.6667 9.36666 16.5 9.2C16.3667 9.03333 16.2333 8.86666 16.1 8.7C15.9333 8.53333 15.7833 8.36666 15.65 8.2C15.3833 8.03333 15.1333 7.9 14.9 7.8C14.6333 7.66666 14.3833 7.53333 14.15 7.4C13.8833 7.23333 13.65 7.06666 13.45 6.9C13.25 6.7 12.9833 6.53333 12.65 6.4C12.1167 6.5 11.5667 6.75 11 7.15C10.3333 7.58333 9.68333 8.03333 9.05 8.5C8.38333 8.93333 7.75 9.41666 7.15 9.95C6.78333 10.25 6.4 10.5333 6 10.8C5.6 11.0333 5.21667 11.2833 4.85 11.55C4.55 11.75 4.25 11.95 3.95 12.15C3.65 12.3167 3.36667 12.4833 3.1 12.65C2.76667 12.7167 2.46667 12.6167 2.2 12.35C2.13333 12.25 2.06667 12.1667 2 12.1C1.93333 12.0333 1.88333 11.9667 1.85 11.9C1.65 11.6333 1.46667 11.3667 1.3 11.1C1.1 10.8333 0.883334 10.5667 0.65 10.3C0.55 10.0333 0.449999 9.73333 0.35 9.4C0.25 9.06666 0.133333 8.75 -2.57459e-07 8.45C0.0666665 8.18333 0.2 8.03333 0.399999 8C0.566667 7.93333 0.733334 7.88333 0.9 7.85C0.966667 7.68333 1.05 7.51666 1.15 7.35C1.21667 7.15 1.31667 6.96666 1.45 6.8C1.68333 6.53333 1.95 6.26666 2.25 6C2.55 5.7 2.86667 5.38333 3.2 5.05C3.63333 4.88333 4.08333 4.7 4.55 4.5C4.98333 4.3 5.45 4.15 5.95 4.05C6.28333 3.81666 6.58333 3.56666 6.85 3.3C7.08333 3.03333 7.33333 2.73333 7.6 2.4C7.73333 2.3 7.9 2.21666 8.1 2.15C8.26667 2.08333 8.43333 2 8.6 1.9C8.93333 1.6 9.31667 1.36666 9.75 1.2C10.15 0.999997 10.55 0.799997 10.95 0.599996C11.75 0.199997 12.6167 0.116663 13.55 0.349997Z" fill="currentColor"/>
+        </svg>
+      </div>
+
+      <div class="pill-strip" id="mvStrip"><div class="pill-bg" id="mvStripBg"></div></div>
+      <div class="pill-title" id="mvTitle" data-action="toggle-metric"><div class="pill-bg" id="mvTitleBg"></div><span>max. views</span></div>
+      <div class="pill-arrow" id="mvArrow" data-action="sort-views">
+        <div class="pill-bg" id="mvArrowBg"></div>
+        <svg class="arrow-icon" viewBox="0 0 25 14" xmlns="http://www.w3.org/2000/svg">
+          <path d="M13.55 0.349997C13.7833 0.48333 14.0167 0.63333 14.25 0.799997C14.45 0.93333 14.6833 1.08333 14.95 1.25C15.7167 1.61666 16.35 2.11666 16.85 2.75C17.15 3.08333 17.45 3.38333 17.75 3.65C18.05 3.91666 18.4 4.13333 18.8 4.3C19.3333 4.76666 19.8833 5.23333 20.45 5.7C21.0167 6.13333 21.5833 6.58333 22.15 7.05C22.35 7.21666 22.5333 7.4 22.7 7.6C22.8667 7.76666 23.0667 7.91666 23.3 8.05C23.4333 8.08333 23.5667 8.2 23.7 8.4C23.9 8.63333 24.1 8.85 24.3 9.05C24.4667 9.25 24.65 9.46666 24.85 9.7C24.8167 9.76666 24.7833 9.85 24.75 9.95C24.7167 10.05 24.6667 10.1333 24.6 10.2C24.4667 10.3667 24.3333 10.5333 24.2 10.7C24.0333 10.8667 23.8833 11.05 23.75 11.25C23.5833 11.55 23.4 11.8167 23.2 12.05C22.9667 12.25 22.7333 12.4333 22.5 12.6C22.3333 12.7333 22.15 12.8667 21.95 13C21.75 13.1 21.55 13.2333 21.35 13.4C21.1167 13.3333 20.8833 13.2667 20.65 13.2C20.3833 13.1 20.1333 13.0333 19.9 13C19.6333 12.6333 19.35 12.3 19.05 12C18.7167 11.6667 18.3833 11.3833 18.05 11.15C17.95 10.95 17.85 10.7667 17.75 10.6C17.65 10.4 17.5667 10.2 17.5 10C17.3333 9.86666 17.1667 9.75 17 9.65C16.8333 9.51666 16.6667 9.36666 16.5 9.2C16.3667 9.03333 16.2333 8.86666 16.1 8.7C15.9333 8.53333 15.7833 8.36666 15.65 8.2C15.3833 8.03333 15.1333 7.9 14.9 7.8C14.6333 7.66666 14.3833 7.53333 14.15 7.4C13.8833 7.23333 13.65 7.06666 13.45 6.9C13.25 6.7 12.9833 6.53333 12.65 6.4C12.1167 6.5 11.5667 6.75 11 7.15C10.3333 7.58333 9.68333 8.03333 9.05 8.5C8.38333 8.93333 7.75 9.41666 7.15 9.95C6.78333 10.25 6.4 10.5333 6 10.8C5.6 11.0333 5.21667 11.2833 4.85 11.55C4.55 11.75 4.25 11.95 3.95 12.15C3.65 12.3167 3.36667 12.4833 3.1 12.65C2.76667 12.7167 2.46667 12.6167 2.2 12.35C2.13333 12.25 2.06667 12.1667 2 12.1C1.93333 12.0333 1.88333 11.9667 1.85 11.9C1.65 11.6333 1.46667 11.3667 1.3 11.1C1.1 10.8333 0.883334 10.5667 0.65 10.3C0.55 10.0333 0.449999 9.73333 0.35 9.4C0.25 9.06666 0.133333 8.75 -2.57459e-07 8.45C0.0666665 8.18333 0.2 8.03333 0.399999 8C0.566667 7.93333 0.733334 7.88333 0.9 7.85C0.966667 7.68333 1.05 7.51666 1.15 7.35C1.21667 7.15 1.31667 6.96666 1.45 6.8C1.68333 6.53333 1.95 6.26666 2.25 6C2.55 5.7 2.86667 5.38333 3.2 5.05C3.63333 4.88333 4.08333 4.7 4.55 4.5C4.98333 4.3 5.45 4.15 5.95 4.05C6.28333 3.81666 6.58333 3.56666 6.85 3.3C7.08333 3.03333 7.33333 2.73333 7.6 2.4C7.73333 2.3 7.9 2.21666 8.1 2.15C8.26667 2.08333 8.43333 2 8.6 1.9C8.93333 1.6 9.31667 1.36666 9.75 1.2C10.15 0.999997 10.55 0.799997 10.95 0.599996C11.75 0.199997 12.6167 0.116663 13.55 0.349997Z" fill="currentColor"/>
+        </svg>
+      </div>
+
+      <div id="contactsTitle" data-action="toggle-contacts">
+        <div class="pill-bg" id="contactsCapBg"></div>
+        <span>preferred contacts</span>
+      </div>
+
+      <div class="dd-wrap" id="udPanel" hidden>
+        <div class="dd-bg" id="udPanelBg"></div>
+        <div class="dd-options" id="udOptions"></div>
+      </div>
+      <div class="dd-wrap" id="mvPanel" hidden>
+        <div class="dd-bg" id="mvPanelBg"></div>
+        <div class="dd-options" id="mvOptions"></div>
+      </div>
+      <div class="dd-wrap" id="contactsPanel" hidden>
+        <div class="dd-bg" id="contactsPanelBg"></div>
+        <div class="dd-options" id="contactsOptions"></div>
+      </div>
+
+      <div id="headerFav" title="Show favorites">
+        <div class="pill-bg" id="headerFavBg"></div>
+        <img class="heart" id="headerFavHeart" alt="">
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="rows" id="rows"></div>
+  </div>
+</div>
+
+<div class="page-vignette page-vignette-left"></div>
+<div class="page-vignette page-vignette-right"></div>
+
+
+
+<script>
+const API = "";
+const FAVORITES_KEY = "indie-tracker-favorites";
+
+/* ---------------- YouTube embed player ---------------- */
+
+/* A bare <iframe src="…/embed/ID"> gives no way to tell a working embed
+   apart from one YouTube refuses to play (owner disabled embedding,
+   region lock, etc.) — both just load successfully as far as the browser
+   is concerned, since YouTube renders its own "can't play this video"
+   screen *inside* the iframe rather than failing the request. That inner
+   content is cross-origin and invisible to us, so the video silently
+   shows as a plain black rectangle with no explanation. The IFrame Player
+   API talks to the embedded player over postMessage instead, which does
+   surface an onError callback for exactly this case — letting us swap in
+   a real "can't play this here, watch on YouTube" fallback. */
+const ytApiReadyPromise = new Promise(resolve => {
+  window.onYouTubeIframeAPIReady = resolve;
+});
+// Lazy: only actually fetch the (~50KB, third-party, mutates a bunch of
+// window-level state) script once a video is actually clicked, instead of
+// on every single page load whether or not anyone ever presses play.
+let ytApiLoadStarted = false;
+function ensureYouTubeIframeApiLoading() {
+  if (ytApiLoadStarted) return;
+  ytApiLoadStarted = true;
+  const tag = document.createElement("script");
+  tag.src = "https://www.youtube.com/iframe_api";
+  document.head.appendChild(tag);
+}
+
+function showEmbedError(container, watchUrl) {
+  container.innerHTML = `
+    <div class="embed-error">
+      <p>This video can't be played here.</p>
+      <a href="${watchUrl}" target="_blank" rel="noopener">Watch on YouTube ↗</a>
+    </div>`;
+}
+
+// Tracks every currently-playing inline player, keyed by its .video-thumb
+// container, so a scroll far enough away from it (see stopDistantVideos,
+// hooked into the scroll listener below) can stop it automatically instead
+// of leaving audio/video running somewhere off-screen indefinitely.
+const activePlayers = new Map(); // container -> { player, originalHtml }
+const VIDEO_AUTOSTOP_DISTANCE = 4000;
+
+function stopDistantVideos() {
+  activePlayers.forEach((info, container) => {
+    // render() (filter/sort changes, favorites toggle, etc.) can wipe #rows
+    // — including a row with a video still playing in it — without going
+    // through here at all; the removed iframe's browsing context is torn
+    // down by the browser regardless, so nothing keeps playing, but the
+    // stale map entry needs clearing out next time this runs.
+    if (!container.isConnected) {
+      activePlayers.delete(container);
+      return;
+    }
+    const rect = container.getBoundingClientRect();
+    const tooFarAbove = rect.bottom < -VIDEO_AUTOSTOP_DISTANCE;
+    const tooFarBelow = rect.top > window.innerHeight + VIDEO_AUTOSTOP_DISTANCE;
+    if (!tooFarAbove && !tooFarBelow) return;
+    info.player.destroy();
+    container.innerHTML = info.originalHtml;
+    // re-attaches just the thumbnail <img>'s load/error fallback listener
+    // (see renderThumbnailImg/attachRowListeners) — container itself
+    // (.video-thumb) isn't a descendant of itself, so this can't also
+    // re-attach a duplicate click listener onto it.
+    attachRowListeners(container);
+    activePlayers.delete(container);
+  });
+}
+
+async function playVideoInline(container, videoId, watchUrl) {
+  ensureYouTubeIframeApiLoading();
+  const originalHtml = container.innerHTML;
+  const playerId = `yt-player-${videoId}-${Math.random().toString(36).slice(2)}`;
+  const wrapId = `${playerId}-wrap`;
+
+  // .video-thumb lives inside #canvas, which is scaled with CSS `zoom`
+  // (not transform — see rescale() below) so the whole design re-lays-out
+  // at the viewport's actual width instead of stretching a cached bitmap.
+  // Chrome propagates that ambient zoom into nested iframes' own layout
+  // fine; Safari doesn't reliably carry it through to the embedded
+  // YouTube player's internal size negotiation, so the video renders at
+  // some other (often default 640x390-ish) size inside an otherwise
+  // correctly-sized but now mostly-blank iframe — passing explicit
+  // width/height to YT.Player (tried first) didn't change that, because
+  // the mismatch isn't between *our* CSS and the iframe element, it's
+  // between the ambient zoom and whatever YouTube's own script measures
+  // from inside the iframe.
+  //
+  // Fix: cancel the ambient zoom for just this subtree (wrapper zoom =
+  // 1 / canvas's zoom, so the two multiply out to 1 — same trick already
+  // used for #fixedUiAnchor below, which is kept a sibling of #canvas for
+  // the same reason) and size the now-effectively-unzoomed wrapper with
+  // real on-screen pixels (getBoundingClientRect already reports the
+  // post-zoom size, in both browsers). YouTube then sees a perfectly
+  // ordinary, unzoomed iframe matching its own size exactly, regardless
+  // of whatever the rest of the page's zoom is doing.
+  const canvasScale = parseFloat(document.getElementById("canvas").style.zoom) || 1;
+  const rect = container.getBoundingClientRect();
+  const w = Math.round(rect.width);
+  const h = Math.round(rect.height);
+
+  container.innerHTML = `<div id="${wrapId}" style="zoom:${1 / canvasScale}; width:${w}px; height:${h}px;"><div id="${playerId}"></div></div>`;
+  await ytApiReadyPromise;
+  // the click may have re-rendered the row (filter/sort change) before the
+  // API finished loading — don't mount a player into a detached node
+  if (!document.getElementById(playerId)) return;
+  const player = new YT.Player(playerId, {
+    width: w,
+    height: h,
+    videoId,
+    playerVars: { autoplay: 1 },
+    events: {
+      onError: () => {
+        showEmbedError(container, watchUrl);
+        activePlayers.delete(container);
+      },
+    },
+  });
+  activePlayers.set(container, { player, originalHtml });
+}
+
+/* icon uses the same stroke template inlined so it can follow --refresh-icon.
+   No filter on this one (plain stroked path), so it was never affected by
+   the Safari issue — left as a live inline SVG. */
+document.getElementById("applyBtnIcon").outerHTML = `
+<svg class="icon" width="38" height="38" viewBox="0 0 46 46" overflow="visible" fill="none" xmlns="http://www.w3.org/2000/svg" id="applyBtnIcon">
+<path d="M41.853 25.375C41.9501 24.5969 42 23.8044 42 23C42 12.5066 33.4935 4 23 4C17.0611 4 11.7587 6.72477 8.27452 10.9924M8.27452 10.9924V4M8.27452 10.9924V11.1248L15.3995 11.125M4.14699 20.625C4.04997 21.4031 4 22.1956 4 23C4 33.4935 12.5066 42 23 42C28.6748 42 33.7685 39.5122 37.25 35.5675M37.25 35.5675V34.875H30.125M37.25 35.5675V42" stroke="var(--refresh-icon)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+document.getElementById("headerFavHeart").outerHTML = `
+<svg class="heart" width="31" height="27" viewBox="0 0 47 41" fill="none" xmlns="http://www.w3.org/2000/svg" id="headerFavHeart">
+<path class="header-fav-heart-fill" d="M0 13.9378C0 25.5194 9.44566 31.6912 16.3601 37.2153C18.8 39.1647 21.15 41 23.5 41C25.85 41 28.2 39.1647 30.64 37.2153C37.5544 31.6912 47 25.5194 47 13.9378C47 2.35603 34.0745 -5.8575 23.5 5.27703C12.9254 -5.8575 0 2.35603 0 13.9378Z" fill="var(--header-fav-heart)"/>
+</svg>`;
+
+/* ---------------- state ---------------- */
+
+let allGames = [];
+let sortField = "views";        // "views" | "date"
+let sortDirection = "desc";
+let appliedPriority = [];   // drives the actual sort/badges in the results list
+let pendingPriority = [];   // what's checked in the dropdown right now, not yet applied
+let favorites = new Set(JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]"));
+let showingFavoritesOnly = false;
+// Game ids whose description panel is currently expanded — survives across
+// render()'s full DOM rebuilds (switching filter tabs, applying preferred
+// contacts, etc.) so an opened description doesn't silently re-collapse
+// just because its row happened to get torn down and recreated.
+const openDescriptions = new Set();
+
+const PERIOD_OPTIONS = [
+  { value: "today", label: "today" },
+  { value: "3d", label: "last 3 days" },
+  { value: "7d", label: "last 7 days" },
+  { value: "14d", label: "last 14 days" },
+  { value: "30d", label: "last month" },
+  { value: "", label: "all time" },
+];
+let periodValue = "";
+
+const METRIC_OPTIONS = [
+  { value: "100", label: "100" },
+  { value: "1000", label: "1 000" },
+  { value: "10000", label: "10 000" },
+  { value: "100000", label: "100 000" },
+  { value: "", label: "unlimited" },
+];
+let metricValue = "";
+
+const CONTACT_TYPES = [
+  { value: "discord", label: "discord" },
+  { value: "x", label: "x" },
+  { value: "instagram", label: "insta" },
+  { value: "website", label: "web" },
+];
+
+const CONTACT_ROWS = [
+  { key: "steam", label: "steam", icon: "steam" },
+  { key: "discord", label: "discord", icon: "discord" },
+  { key: "x", label: "x", icon: "twitter" },
+  { key: "instagram", label: "insta", icon: "insta" },
+  { key: "website", label: "web", icon: "web" },
+];
+
+/* ---------------- brand/badge icons ----------------
+   These are plain PNGs (pre-rendered from the source SVGs at 8x, in
+   frontend/assets/png/), not live SVG-with-filter. Safari has a
+   long-standing bug where an SVG carrying feTurbulence/feDisplacementMap
+   (our hand-drawn wobble) rasterizes soft/blocky — inlining the SVG (so
+   Chromium recomputes it) and switching #canvas from `transform: scale`
+   to `zoom` both failed to change that in real Safari, so the filter
+   itself is the problem, not how it's hosted or scaled. A plain raster
+   image has no filter left to mis-render at request time in any engine —
+   see scripts/render-icons.py for how these were generated. */
+const PNG_ASSETS = "assets/png";
+const ICON_FILES = { steam: "steam", discord: "discord", twitter: "twitter", insta: "insta", web: "web" };
+const STAR_FILES = ["star-1", "star-2"];
+const CROSS_FILES = ["cross-1", "cross-2"];
+
+// Pinned once per contact type, not re-rolled on every renderContactsDropdown
+// render — that function re-renders the *entire* options list on every
+// single toggle (see below), so picking a fresh Math.random() per option on
+// each render made every already-selected star jump to a possibly-different
+// variant alongside the one actually being toggled.
+const CONTACT_STAR_FILE = {};
+CONTACT_TYPES.forEach(opt => {
+  CONTACT_STAR_FILE[opt.value] = STAR_FILES[Math.random() < 0.5 ? 0 : 1];
+});
+
+/* ---------------- data loading ---------------- */
+
+async function loadGames() {
+  // Sets the guard *before* the fetch goes out, not after — this used to
+  // be a window.scrollTo(0, 0) call right here instead (applying a filter
+  // always jumped the page back to the top), which incidentally also fired
+  // a real "scroll" event that the listener below turns into a
+  // maybeLoadMoreRows() call on the next animation frame. Filters no
+  // longer force that scroll (the user asked to stay put wherever they
+  // were reading), but the fetch is still async, so without this flag
+  // maybeLoadMoreRows() could fire during the gap and run against the
+  // *old* currentList/renderedCount (render(true) hasn't replaced them
+  // yet), inserting more of the outgoing list's rows into #rows right as
+  // the fade-out/fade-in swap (see render()) starts touching the same
+  // element — the "part of the old buttons flashes for a split second"
+  // glitch this whole guard exists for. render()'s own applyContent()
+  // clears the flag once the swap actually happens, same as any other
+  // resetView caller.
+  renderTransitionInProgress = true;
+  const params = new URLSearchParams();
+  if (metricValue) params.set("max_metric", metricValue);
+  if (periodValue) params.set("period", periodValue);
+  const res = await fetch(`${API}/api/games?${params.toString()}`);
+  allGames = await res.json();
+  render(true);
+}
+
+async function loadLastUpdated() {
+  const el = document.getElementById("lastUpdated");
+  try {
+    const res = await fetch(`${API}/api/last-updated`);
+    const data = await res.json();
+    el.textContent = data.last_updated ? `last updated ${formatRelativeTime(data.last_updated)}` : "";
+  } catch {
+    el.textContent = "";
+  }
+}
+
+function sortAndFilter() {
+  let list = showingFavoritesOnly ? allGames.filter(g => favorites.has(g.id)) : allGames.slice();
+
+  list.sort((a, b) => {
+    // games matching more of the selected preferred contacts rank higher —
+    // e.g. with 3 contacts checked, a game with all 3 outranks one with 2,
+    // which outranks one with 1, which outranks one with none.
+    const aMatches = appliedPriority.filter(t => a.contacts[t]).length;
+    const bMatches = appliedPriority.filter(t => b.contacts[t]).length;
+    if (aMatches !== bMatches) return bMatches - aMatches;
+
+    const aVal = sortField === "date"
+      ? new Date(a.best_source.published_at || 0).getTime()
+      : a.best_source.metric_value;
+    const bVal = sortField === "date"
+      ? new Date(b.best_source.published_at || 0).getTime()
+      : b.best_source.metric_value;
+
+    return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+  });
+
+  return list;
+}
+
+/* ---------------- dropdowns ---------------- */
+
+/* sums offsetLeft up the chain to `ancestor` — gives a position in
+   unscaled design pixels regardless of the #canvas CSS transform, so it
+   stays correct at any window size */
+function leftRelativeTo(el, ancestor) {
+  let x = 0;
+  let node = el;
+  while (node && node !== ancestor) {
+    x += node.offsetLeft;
+    node = node.offsetParent;
+  }
+  return x;
+}
+
+/* left-aligns a dropdown's option list to the rendered left edge of its
+   (centered) label text, per spec */
+function alignOptionsToLabel(labelSpan, panelWrap, optionsEl) {
+  /* labelSpan and panelWrap are siblings inside #toolbarArea. panelWrap is a
+     hidden .dd-wrap the first time this runs — a display:none element's
+     offsetLeft/offsetParent are both useless (report 0/null), so its position
+     can't be measured by walking the box tree. Its CSS `left` is a plain
+     pixel value though, so computed style gives the real number regardless
+     of whether the box is currently rendered. */
+  const labelLeft = leftRelativeTo(labelSpan, document.getElementById("toolbarArea"));
+  const panelLeft = parseFloat(getComputedStyle(panelWrap).left);
+  /* both labelLeft and panelLeft are true absolute (toolbarArea-relative)
+     positions already — no margin correction needed here, that only
+     matters for the raster masks themselves */
+  optionsEl.style.left = (labelLeft - panelLeft) + "px";
+}
+
+/* Runs `cb` once the next time `el` fires transitionend for `prop` — and,
+   critically, drops any previously-registered callback for this element
+   first. Without that, rapidly re-triggering an animation leaves a stale
+   listener waiting for a transitionend that will never come once its
+   target value gets overwritten by the new animation, silently wedging
+   whatever follow-up step it was gating. Used by the #rows fade in
+   render() below — the header dropdowns themselves are plain instant
+   show/hide (see closeAllDropdowns/openDropdown), no transition. */
+function onceTransitionEnd(el, prop, cb) {
+  if (el._pendingTransitionHandler) {
+    el.removeEventListener("transitionend", el._pendingTransitionHandler);
+    clearTimeout(el._pendingTransitionTimeout);
+  }
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    el.removeEventListener("transitionend", handler);
+    clearTimeout(el._pendingTransitionTimeout);
+    el._pendingTransitionHandler = null;
+    el._pendingTransitionTimeout = null;
+    cb();
+  };
+  const handler = (e) => {
+    if (e.target !== el || e.propertyName !== prop) return;
+    finish();
+  };
+  el._pendingTransitionHandler = handler;
+  el.addEventListener("transitionend", handler);
+  // Safety net: transitionend isn't guaranteed to fire — a backgrounded/
+  // hidden tab can suspend a transition mid-flight (switching away via
+  // Mission Control, Spaces, another app grabbing focus, etc.) without
+  // ever dispatching its completion event. Without this, that silently
+  // wedges whatever was waiting on it forever: a dropdown stuck mid-close,
+  // or #rows stuck invisible showing stale content with no way to
+  // recover — not even by scrolling, since render()'s
+  // renderTransitionInProgress flag would never clear either. 1000ms is
+  // comfortably longer than any transition duration actually used in this
+  // file (250ms/150ms/120ms), so this never preempts a normal transition,
+  // only a genuinely stuck one.
+  el._pendingTransitionTimeout = setTimeout(finish, 1000);
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll(".dd-wrap").forEach(d => d.hidden = true);
+}
+
+function openDropdown(panelId) {
+  const panel = document.getElementById(panelId);
+  const wasHidden = panel.hidden;
+  closeAllDropdowns();
+  if (wasHidden) panel.hidden = false;
+}
+
+function renderPeriodDropdown() {
+  const el = document.getElementById("udOptions");
+  el.innerHTML = PERIOD_OPTIONS.map(opt => `
+    <div class="dd-option ${opt.value === periodValue ? "selected" : ""}" data-value="${opt.value}"><span>${opt.label}</span></div>
+  `).join("");
+  el.querySelectorAll(".dd-option").forEach(node => {
+    node.addEventListener("click", () => {
+      periodValue = node.dataset.value;
+      closeAllDropdowns();
+      renderPeriodDropdown();
+      loadGames();
+    });
+  });
+  alignOptionsToLabel(document.querySelector("#udTitle span"), document.getElementById("udPanel"), el);
+}
+
+function renderMetricDropdown() {
+  const el = document.getElementById("mvOptions");
+  el.innerHTML = METRIC_OPTIONS.map(opt => `
+    <div class="dd-option ${opt.value === metricValue ? "selected" : ""}" data-value="${opt.value}"><span>${opt.label}</span></div>
+  `).join("");
+  el.querySelectorAll(".dd-option").forEach(node => {
+    node.addEventListener("click", () => {
+      metricValue = node.dataset.value;
+      closeAllDropdowns();
+      renderMetricDropdown();
+      loadGames();
+    });
+  });
+  alignOptionsToLabel(document.querySelector("#mvTitle span"), document.getElementById("mvPanel"), el);
+}
+
+function renderContactsDropdown() {
+  const el = document.getElementById("contactsOptions");
+  el.innerHTML = CONTACT_TYPES.map(opt => {
+    const selected = pendingPriority.includes(opt.value);
+    const starFile = selected ? CONTACT_STAR_FILE[opt.value] : null;
+    return `
+      <div class="dd-option dd-option-contact ${selected ? "selected" : ""}" data-value="${opt.value}">
+        <span>${opt.label}</span>
+        ${starFile ? `<img class="star" src="${PNG_ASSETS}/${starFile}.png" alt="">` : ""}
+      </div>`;
+  }).join("");
+  el.querySelectorAll(".dd-option-contact").forEach(node => {
+    node.addEventListener("click", (e) => {
+      /* this re-renders the dropdown (replacing `node` itself) before the
+         click finishes bubbling, which detaches the event's target from
+         the document — the outside-click handler below would then see
+         target.closest("#toolbarArea") fail on the detached node and
+         treat this as a click outside the dropdown, closing it right
+         after every single selection. Stop it from bubbling that far. */
+      e.stopPropagation();
+      const v = node.dataset.value;
+      if (pendingPriority.includes(v)) {
+        pendingPriority = pendingPriority.filter(t => t !== v);
+        node.classList.remove("selected");
+        const star = node.querySelector(".star");
+        if (star) star.remove();
+      } else {
+        pendingPriority.push(v);
+        node.classList.add("selected");
+        const starFile = CONTACT_STAR_FILE[v];
+        if (starFile) {
+          node.insertAdjacentHTML("beforeend", `<img class="star" src="${PNG_ASSETS}/${starFile}.png" alt="">`);
+        }
+      }
+      updateApplyButton();
+    });
+  });
+  alignOptionsToLabel(document.querySelector("#contactsTitle span"), document.getElementById("contactsPanel"), el);
+}
+
+/* Darumadrop loads async, and alignOptionsToLabel measures the *rendered*
+   width of the label text — computing it against the fallback font before
+   the real one has swapped in gives a wrong position. Every font-loading
+   API turned out to be an unreliable way to know when that swap has
+   actually happened: document.fonts.ready doesn't wait for @font-face
+   fonts pulled in via an external stylesheet (this Google Fonts <link>) in
+   Safari, and switching to the more targeted document.fonts.load() didn't
+   fix it there either. So: don't try to detect it at all. Render once now
+   (fine even if it's against the fallback font — the panels are `hidden`,
+   nobody sees it) and, more importantly, re-render+realign right before
+   each dropdown actually opens (see openDropdown calls below) — by the
+   time a real click happens the font has unavoidably long since finished
+   rendering, regardless of what any loading API claims. */
+renderPeriodDropdown();
+renderMetricDropdown();
+renderContactsDropdown();
+
+document.getElementById("udTitle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  renderPeriodDropdown(); // re-align against the label's real rendered width — see the comment above
+  openDropdown("udPanel");
+});
+document.getElementById("mvTitle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  renderMetricDropdown();
+  openDropdown("mvPanel");
+});
+document.getElementById("contactsTitle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  renderContactsDropdown();
+  openDropdown("contactsPanel");
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#toolbarArea")) closeAllDropdowns();
+});
+
+function updateSortArrows() {
+  const dateArrow = document.getElementById("udArrow");
+  const viewsArrow = document.getElementById("mvArrow");
+  dateArrow.classList.toggle("dir-desc", sortField === "date" && sortDirection === "desc");
+  viewsArrow.classList.toggle("dir-desc", sortField === "views" && sortDirection === "desc");
+}
+
+document.getElementById("udArrow").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (sortField === "date") sortDirection = sortDirection === "asc" ? "desc" : "asc";
+  else { sortField = "date"; sortDirection = "desc"; }
+  updateSortArrows();
+  render(true);
+});
+document.getElementById("mvArrow").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (sortField === "views") sortDirection = sortDirection === "asc" ? "desc" : "asc";
+  else { sortField = "views"; sortDirection = "desc"; }
+  updateSortArrows();
+  render(true);
+});
+updateSortArrows();
+
+/* ---------------- favorites ---------------- */
+
+function saveFavorites() {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify([...favorites]));
+}
+
+function toggleFavorite(gameId) {
+  const isRemoving = favorites.has(gameId);
+  if (isRemoving) favorites.delete(gameId);
+  else favorites.add(gameId);
+  saveFavorites();
+  // Removing a favorite while *viewing* favorites-only shrinks the
+  // currently-displayed list (the row disappears entirely) — the same
+  // kind of list-content change as a filter/sort change, so it gets the
+  // same resetView=true fade (see render()). In every other case, update the
+  // button's class directly in-place so its background-color transitions
+  // smoothly via CSS without recreating the DOM nodes.
+  if (showingFavoritesOnly && isRemoving) {
+    render(true);
+  } else {
+    document.querySelectorAll(`.badge-fav[data-fav-toggle="${gameId}"]`).forEach(el => {
+      el.classList.toggle("active", !isRemoving);
+    });
+  }
+}
+
+const headerFav = document.getElementById("headerFav");
+headerFav.addEventListener("click", () => {
+  showingFavoritesOnly = !showingFavoritesOnly;
+  headerFav.classList.toggle("active", showingFavoritesOnly);
+  // .active already drives the heart's fill via CSS (see
+  // #headerFav.active .header-fav-heart-fill); this just swaps the whole
+  // page's palette to match, since "favorites" is the only place it applies.
+  // Set the class on both html and body. Only html actually needs it for
+  // CSS (--bg-base etc. live in `html.favorites-theme` and cascade down to
+  // body regardless), but Chrome paints the "backdrop" behind fixed
+  // elements specifically from html's background (see the #bgStripes
+  // comment) while Safari's overscroll/tab-tint color-sampling is opaque
+  // to us from here — keeping both classed is a free hedge against either
+  // engine consulting the other element for some native, non-CSS purpose.
+  document.documentElement.classList.toggle("favorites-theme", showingFavoritesOnly);
+  document.body.classList.toggle("favorites-theme", showingFavoritesOnly);
+  document.getElementById("themeColorMeta").setAttribute("content", showingFavoritesOnly ? "#533132" : "#415331");
+  // page title stays "eskimo's indie tracker" in both states, per the
+  // user's call — only the palette (favorites-theme) and theme-color meta
+  // change
+  render(true);
+});
+
+/* ---------------- relative date ---------------- */
+
+function formatRelativeDate(iso) {
+  if (!iso) return "—";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return "today";
+  if (diffDays === 1) return "1 day ago";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks === 1) return "1 week ago";
+  return `${diffWeeks} weeks ago`;
+}
+
+// finer-grained than formatRelativeDate (minutes/hours, not just days) —
+// ingestion runs every 6h, so day-level granularity would just say "today"
+// for basically every update, which isn't very informative here.
+function formatRelativeTime(iso) {
+  if (!iso) return "—";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  if (diffMinutes < 1) return "just now";
+  if (diffMinutes === 1) return "1 minute ago";
+  if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours === 1) return "1 hour ago";
+  if (diffHours < 24) return `${diffHours} hours ago`;
+  return formatRelativeDate(iso);
+}
+
+// Plain ASCII space as the thousands separator (e.g. "22 888"), not a
+// locale's toLocaleString() — locales that use a space for this
+// (fr-FR, ru-RU, ...) actually use a non-breaking or narrow-no-break space
+// depending on browser/ICU data, not a guaranteed plain U+0020, and en-US
+// gives commas. Inserting it directly guarantees the exact character.
+function formatViews(n) { return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+
+/* ---------------- render ---------------- */
+
+function extractVideoId(watchUrl) {
+  try { return new URL(watchUrl).searchParams.get("v"); } catch { return null; }
+}
+
+function renderContactRow(game, row) {
+  const url = game.contacts[row.key];
+  const found = Boolean(url);
+  const isPriority = found && appliedPriority.includes(row.key === "instagram" ? "instagram" : row.key);
+  const badge = !found
+    ? `<img class="badge badge-cross" src="${PNG_ASSETS}/${CROSS_FILES[row.key.length % 2]}.png" alt="">`
+    : (isPriority ? `<img class="badge badge-star" src="${PNG_ASSETS}/${STAR_FILES[row.key.length % 2]}.png" alt="">` : "");
+
+  const iconFile = !found
+    ? ICON_FILES[row.icon] + "-inactive"
+    : (showingFavoritesOnly && row.icon === "web" ? "web-favorites" : ICON_FILES[row.icon]);
+  const inner = `
+    <div class="contact-icon-wrap">
+      <img class="icon" src="${PNG_ASSETS}/${iconFile}.png?v=3" alt="">
+      ${badge}
+    </div>
+    <span class="contact-label">${row.label}</span>
+  `;
+
+  const rowClass = `contact-row contact-row-${row.icon} ${found ? "" : "missing"}`;
+  return found
+    ? `<div class="${rowClass}"><a href="${url}" target="_blank" rel="noopener">${inner}</a></div>`
+    : `<div class="${rowClass}">${inner}</div>`;
+}
+
+// YouTube serves a thumbnail at this fixed path convention keyed only by
+// video ID (i.ytimg.com, no API key/quota needed) — used instead of the
+// "medium" (320x180) thumbnail_url stored from the Data API at ingestion
+// time, since maxresdefault.jpg (1280x720, when the uploader provided one)
+// is dramatically sharper at this row's ~860px display width. maxresdefault
+// doesn't 404 when missing though — it silently serves a fixed 120x90 grey
+// placeholder instead — so attachRowListeners below checks the loaded
+// image's real width and swaps to hqdefault.jpg (480x360, always present
+// for any real video) if it got the placeholder.
+function renderThumbnailImg(g, videoId) {
+  if (!videoId) {
+    return g.best_source.thumbnail_url
+      ? `<img src="${g.best_source.thumbnail_url}" alt="${g.best_source.title}">`
+      : "";
+  }
+  return `<img data-thumb-video-id="${videoId}" src="https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg" alt="${g.best_source.title}">`;
+}
+
+function renderRowHtml(g, index) {
+  const videoId = extractVideoId(g.best_source.url);
+  const isFav = favorites.has(g.id);
+
+  return `
+    <div class="row" data-game-id="${g.id}">
+      <div class="row-head">
+        <div class="row-head-title"><a href="${g.best_source.url}" target="_blank" rel="noopener">${g.best_source.title}</a></div>
+        <div class="row-head-meta">${formatViews(g.best_source.metric_value)} views &middot; ${formatRelativeTime(g.best_source.published_at)}</div>
+      </div>
+
+      <div class="divider divider-top"></div>
+
+      <div class="row-media">
+        <div class="video-wrap">
+          <div class="video-bg"></div>
+
+          <div class="badge-rank">
+            <div class="badge-rank-inner">
+              <div class="badge-rank-num">#${index + 1}</div>
+            </div>
+          </div>
+
+          <div class="badge-fav ${isFav ? "active" : ""}" data-fav-toggle="${g.id}">
+            <div class="badge-fav-inner">
+              <div class="fav-heart-mask"></div>
+            </div>
+          </div>
+
+          <div class="video-thumb" data-video-url="${g.best_source.url}">
+            ${renderThumbnailImg(g, videoId)}
+            ${videoId ? `<div class="play-btn"><div class="play-btn-circle"></div><div class="play-btn-triangle"></div></div>` : ""}
+          </div>
+        </div>
+
+        <div class="contacts-wrap">
+          <div class="contacts-bg"></div>
+          <div class="contacts-list">
+            ${CONTACT_ROWS.map(row => renderContactRow(g, row)).join("")}
+          </div>
+        </div>
+      </div>
+
+      <div class="divider-bottom-container">
+        <div class="divider divider-bottom"></div>
+        <div class="more-btn" data-more-toggle="${g.id}">
+          <div class="more-btn-back"></div>
+          <div class="more-btn-symbol"></div>
+        </div>
+      </div>
+
+      <div class="row-description-wrap" data-desc-wrap="${g.id}">
+        <div class="row-description-content">
+          <div class="description-box">
+            <div class="description-back"></div>
+            <div class="description-text">${escapeHtml(g.best_source.description || "No description available.")}</div>
+          </div>
+          <div class="divider divider-bottom-extra"></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function attachRowListeners(root) {
+  root.querySelectorAll("[data-fav-toggle]").forEach(el => {
+    el.addEventListener("click", () => toggleFavorite(Number(el.dataset.favToggle)));
+  });
+
+  root.querySelectorAll(".description-text").forEach(el => {
+    const updateMask = () => {
+      const isScrolled = el.scrollTop > 2;
+      const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 2;
+      el.classList.toggle("scrolled", isScrolled);
+      el.classList.toggle("at-bottom", isAtBottom);
+    };
+    updateMask();
+    el.addEventListener("scroll", updateMask, { passive: true });
+    el._updateDescMask = updateMask;
+    attachDescScrollEasing(el);
+  });
+
+  root.querySelectorAll("[data-more-toggle]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const gameId = el.dataset.moreToggle;
+      const row = el.closest(".row");
+      const wrap = row ? row.querySelector(".row-description-wrap") : document.querySelector(`[data-desc-wrap="${gameId}"]`);
+      if (!wrap) return;
+      const isOpen = el.classList.toggle("open");
+      wrap.classList.toggle("open", isOpen);
+      if (isOpen) openDescriptions.add(gameId); else openDescriptions.delete(gameId);
+      // wrap.dataset.openHeight is set per-row by fitRowDescription() to
+      // match whichever description-N backdrop that row's actual line
+      // count needs — replaces a single fixed open height for every row.
+      wrap.style.height = isOpen ? (wrap.dataset.openHeight + "px") : "0px";
+      if (isOpen && row) {
+        const descEl = row.querySelector(".description-text");
+        if (descEl && descEl._updateDescMask) {
+          setTimeout(descEl._updateDescMask, 50);
+        }
+      }
+    });
+  });
+
+  root.querySelectorAll(".video-thumb").forEach(el => {
+    el.addEventListener("click", () => {
+      const videoId = extractVideoId(el.dataset.videoUrl);
+      if (!videoId) return;
+      playVideoInline(el, videoId, el.dataset.videoUrl);
+    });
+  });
+
+  // see renderThumbnailImg above — falls back to hqdefault.jpg in two
+  // separate cases: maxresdefault.jpg loaded fine but turned out to be the
+  // grey "no high-res thumbnail" placeholder (always exactly 120x90,
+  // unlike any real thumbnail at this aspect ratio), or the request
+  // genuinely failed to load at all (seen in practice as an isolated
+  // transient hiccup against i.ytimg.com — a bare reload of the same URL
+  // succeeded) — that path only ever fires "error", never "load", so it
+  // needs its own listener rather than being caught by the width check.
+  root.querySelectorAll("img[data-thumb-video-id]").forEach(img => {
+    const fallbackToHq = () => {
+      img.src = `https://i.ytimg.com/vi/${img.dataset.thumbVideoId}/hqdefault.jpg`;
+    };
+    img.addEventListener("load", () => {
+      if (img.naturalWidth <= 120) fallbackToHq();
+    }, { once: true });
+    img.addEventListener("error", fallbackToHq, { once: true });
+  });
+}
+
+// Rendered incrementally rather than all at once: with the dataset having
+// grown to hundreds of rows (each carrying several mask-image layers, all
+// inside the zoom-scaled canvas, so their real on-screen pixel cost scales
+// with viewport size), building every row up front made the page tall and
+// heavy enough to run into real rendering-resource limits on some
+// machines — surfacing as a scroll that barely nudges instead of paging
+// through, worse on wider windows and worse the more the dataset grows,
+// which matches a resource ceiling rather than a specific logic bug.
+// Rendering a bounded batch at a time keeps the live DOM/paint cost
+// roughly constant regardless of how large the underlying list gets.
+const ROW_BATCH_SIZE = 30;
+let currentList = [];
+let renderedCount = 0;
+// True from the moment a resetView render's fade-out starts until its
+// DOM swap actually happens — see the maybeLoadMoreRows comment below for
+// why this exists.
+let renderTransitionInProgress = false;
+
+// Binary-searches the longest prefix of `fullTitle` (+ a literal "...")
+// that still fits `link`'s box — see the .row-head-title comment in
+// <style> for why this replaces the native CSS ellipsis. Canvas-relative
+// (zoom scales link and container identically), so this never needs
+// re-running on window resize — only once, right after a row is inserted.
+// Single offscreen canvas reused for every title measurement, rather than
+// writing candidate text into the live <a> and reading back
+// getBoundingClientRect() on each binary-search step — that forced a real
+// synchronous layout recalculation on *every* read (up to ~8 per title),
+// which across a fresh batch of 30 rows added up to ~240 forced layouts
+// to renderMoreRows(), on top of everything else it already does for a
+// batch of mask-heavy rows. measureText() computes the same width without
+// ever touching the DOM/layout, cutting this down to one single real
+// layout read per row (container.clientWidth) regardless of title length.
+const titleMeasureCtx = document.createElement("canvas").getContext("2d");
+
+function fitRowTitle(link, fullTitle) {
+  const container = link.parentElement;
+  if (!container) return;
+  link.dataset.fullTitle = fullTitle;
+  // Use unscaled authored font size for Canvas measureText, and convert container's rendered
+  // bounding width to unzoomed design coordinates by dividing by the current scale.
+  // This ensures text width and container width are compared in exact 100% unscaled design
+  // coordinates (1920px width reference), regardless of browser zoom behavior or window size.
+  const scale = parseFloat(document.getElementById("canvas").style.zoom) || (window.innerWidth / 1920 * PAGE_SCALE) || 1;
+  const cs = getComputedStyle(link);
+  titleMeasureCtx.font = `${cs.fontSize} ${cs.fontFamily}`;
+  const maxWidth = container.getBoundingClientRect().width / scale;
+  if (titleMeasureCtx.measureText(fullTitle).width <= maxWidth) {
+    link.textContent = fullTitle;
+    return;
+  }
+  let lo = 0, hi = fullTitle.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (titleMeasureCtx.measureText(fullTitle.slice(0, mid) + "...").width <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  link.textContent = fullTitle.slice(0, lo) + "...";
+}
+
+function refitAllRowTitles() {
+  document.querySelectorAll(".row-head-title a").forEach(link => {
+    const fullTitle = link.dataset.fullTitle;
+    if (fullTitle) fitRowTitle(link, fullTitle);
+  });
+}
+
+// One description-N.png backdrop per line count, 1 through 10 (see
+// scripts/render-masks.py) — DESC_HEIGHTS[i] is that backdrop's own
+// design-spec height (i+1 lines). DESC_BOX_PADDING is .description-box's
+// own padding-top(16) + padding-bottom(20); DESC_WRAP_EXTRA is
+// .row-description-content's padding-top(13, the gap above the backdrop)
+// + .description-box's own margin-bottom(13, the gap below it) +
+// .divider-bottom-extra's height(20) — all fixed, unrelated to line
+// count, added on top of whichever backdrop height was picked to get the
+// box's/wrap's own total height.
+const DESC_LINE_HEIGHT = 35;
+const DESC_HEIGHTS = [70, 106, 142, 177, 212, 245, 282, 314, 354, 385];
+const DESC_BOX_PADDING = 36;
+const DESC_WRAP_EXTRA = 46;
+const DESC_FADE_ZONE = 19;
+
+// Picks the description-N backdrop matching `row`'s actual description
+// length and sizes everything around it (the box, the text's own
+// scrollable max-height, the fade-out gradient position, and the stored
+// height the more-toggle uses to open .row-description-wrap) to match.
+//
+// Line count comes from measuring .description-text's own natural
+// scrollHeight rather than trying to simulate the browser's pre-wrap/
+// word-break line-wrapping ourselves (compare fitRowTitle, which only
+// ever needs a single-line width check) — scrollHeight already reflects
+// the *real* layout engine's own wrapping exactly, unclamped by whatever
+// max-height was previously set, the same way it's used everywhere else
+// in this file regardless of overflow clipping.
+function fitRowDescription(row) {
+  const descBack = row.querySelector(".description-back");
+  const descText = row.querySelector(".description-text");
+  const descBox = row.querySelector(".description-box");
+  const wrap = row.querySelector(".row-description-wrap");
+  if (!descBack || !descText || !descBox || !wrap) return;
+
+  const naturalHeight = descText.scrollHeight;
+  const lineCount = Math.max(1, Math.round(naturalHeight / DESC_LINE_HEIGHT));
+  const cappedLines = Math.min(lineCount, DESC_HEIGHTS.length);
+  const designCapacity = DESC_HEIGHTS[cappedLines - 1] - DESC_BOX_PADDING;
+  // Up to 10 lines, never clip below what the text actually needs — the
+  // backdrop's own designed capacity can be a pixel or two tight for some
+  // line counts (Figma's given heights aren't perfectly N*lineHeight+
+  // padding for every N). Past 10 lines, DESC_HEIGHTS[9]'s capacity
+  // becomes a hard, intentional cap instead — that's what triggers the
+  // existing scrollbar/fade for anything longer.
+  const textMaxHeight = lineCount > DESC_HEIGHTS.length
+    ? designCapacity
+    : Math.max(naturalHeight, designCapacity);
+  const boxHeight = textMaxHeight + DESC_BOX_PADDING;
+
+  descBack.style.maskImage = `url(assets/masks/description-${cappedLines}.png?v=3)`;
+  descBack.style.webkitMaskImage = descBack.style.maskImage;
+  descBox.style.height = boxHeight + "px";
+  descText.style.maxHeight = textMaxHeight + "px";
+  descText.style.setProperty("--desc-fade-start", Math.max(0, textMaxHeight - DESC_FADE_ZONE) + "px");
+  descText.style.setProperty("--desc-fade-end", textMaxHeight + "px");
+  wrap.dataset.openHeight = boxHeight + DESC_WRAP_EXTRA;
+
+  // Re-apply an already-open state after a full row rebuild (render()
+  // tears down and recreates every .row on a filter change) — done here,
+  // synchronously right after insertion and with no forced reflow in
+  // between, so the browser never observes a height:0 frame to transition
+  // away from and the panel just appears open, not animating open.
+  if (openDescriptions.has(wrap.dataset.descWrap)) {
+    wrap.classList.add("open");
+    wrap.style.height = wrap.dataset.openHeight + "px";
+    const moreBtn = row.querySelector("[data-more-toggle]");
+    if (moreBtn) moreBtn.classList.add("open");
+  }
+}
+
+function refitAllRowDescriptions() {
+  document.querySelectorAll(".row").forEach(row => fitRowDescription(row));
+}
+
+// Native wheel-scrolling jumps straight to wherever the input device's
+// delta lands, tick by tick, with no easing of its own — dragging the
+// scrollbar thumb itself stays untouched (a drag has to track the mouse
+// 1:1, there's nothing to ease there), but a wheel/trackpad tick over the
+// text gets animated toward its target instead, accelerating in and
+// decelerating out like everything else's cubic-bezier(0.45, 0, 0.55, 1)
+// motion on this page.
+const DESC_SCROLL_EASE_DURATION = 380;
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function attachDescScrollEasing(el) {
+  let target = null; // current in-flight animation's destination scrollTop
+  let sessionId = 0;
+
+  el.addEventListener("wheel", (e) => {
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    if (maxScroll <= 0) return; // nothing to scroll — let the event pass through untouched
+
+    const base = target !== null ? target : el.scrollTop;
+    // already at the boundary in the direction being scrolled — don't
+    // swallow the event, so the page itself can still scroll (native
+    // overscroll-chaining) instead of the wheel feeling "stuck". A 2px
+    // tolerance, not exact equality against maxScroll: scrollHeight/
+    // clientHeight are integer-rounded even when the underlying layout is
+    // fractional, so the *real* max scrollTop the browser ever actually
+    // lands on sits a little under this maxScroll (measured ~1.16px on a
+    // 2174px-tall description) — comparing base to maxScroll exactly would
+    // mean this branch never fires once genuinely at the bottom.
+    if ((e.deltaY < 0 && base <= 2) || (e.deltaY > 0 && base >= maxScroll - 2)) return;
+    const clamped = Math.max(0, Math.min(maxScroll, base + e.deltaY));
+
+    e.preventDefault();
+    target = clamped;
+    const myId = ++sessionId;
+    const startTop = el.scrollTop;
+    const startTime = performance.now();
+
+    requestAnimationFrame(function step(now) {
+      if (myId !== sessionId) return; // a newer wheel tick took over — let it drive instead
+      const t = Math.min(1, (now - startTime) / DESC_SCROLL_EASE_DURATION);
+      el.scrollTop = startTop + (target - startTop) * easeInOutCubic(t);
+      if (t < 1) requestAnimationFrame(step);
+      else target = null;
+    });
+  }, { passive: false });
+}
+
+function renderMoreRows(count = ROW_BATCH_SIZE) {
+  const rowsEl = document.getElementById("rows");
+  const sentinel = document.getElementById("scrollSentinel");
+  const nextBatch = currentList.slice(renderedCount, renderedCount + count);
+  if (!nextBatch.length) return;
+
+  const template = document.createElement("template");
+  template.innerHTML = nextBatch.map((g, i) => renderRowHtml(g, renderedCount + i)).join("");
+  // captured in document order (one .row-head-title a / .row per row, same
+  // order as nextBatch) *before* insertion — insertBefore below moves
+  // these exact nodes into the live document rather than cloning them, so
+  // the references stay valid (and now measurable) afterward.
+  const titleLinks = [...template.content.querySelectorAll(".row-head-title a")];
+  const rows = [...template.content.querySelectorAll(".row")];
+  attachRowListeners(template.content);
+  rowsEl.insertBefore(template.content, sentinel);
+
+  nextBatch.forEach((g, i) => fitRowTitle(titleLinks[i], g.best_source.title));
+  rows.forEach(row => fitRowDescription(row));
+
+  renderedCount += nextBatch.length;
+  rescale();
+}
+
+// Checked directly via getBoundingClientRect on scroll, rather than an
+// IntersectionObserver watching the sentinel — this app scales its whole
+// layout with CSS `zoom` (not transform; see rescale() below), which has
+// already turned out, more than once, to not reliably propagate into
+// other browser geometry/layout APIs the way plain getBoundingClientRect
+// does. Simpler and consistent with everything else in this file that
+// needs zoom-aware positioning.
+function maybeLoadMoreRows() {
+  // A resetView render (see render() below) resets currentList/renderedCount
+  // to the *new* filter's data synchronously, up front — but the actual DOM
+  // (and #scrollSentinel) keeps showing the *old* rows until the fade-out
+  // finishes, a couple hundred ms later. A scroll landing in that window
+  // (a lingering momentum-scroll tick is enough) used to run this against
+  // that mismatch: new counters, stale sentinel/DOM — inserting a slice of
+  // the new list before a sentinel about to be thrown away, and leaving
+  // renderedCount overcounting rows that never actually stuck around once
+  // the fade's own DOM swap ran right after. Bailing out entirely while a
+  // transition is in flight removes the mismatched state to run against;
+  // render()'s own applyContent() calls this again right after its DOM
+  // swap anyway, so nothing is missed, just deferred those few hundred ms.
+  if (renderTransitionInProgress) return;
+  const sentinel = document.getElementById("scrollSentinel");
+  if (!sentinel) return;
+  // loops rather than loading a single batch: one batch might not be
+  // enough to push the sentinel past the threshold on a large/tall
+  // viewport, and nothing else would prompt loading the rest until an
+  // actual scroll happened
+  while (renderedCount < currentList.length && sentinel.getBoundingClientRect().top < window.innerHeight + 1000) {
+    renderMoreRows();
+  }
+}
+
+let scrollCheckQueued = false;
+window.addEventListener("scroll", () => {
+  if (scrollCheckQueued) return;
+  scrollCheckQueued = true;
+  requestAnimationFrame(() => {
+    scrollCheckQueued = false;
+    maybeLoadMoreRows();
+    stopDistantVideos();
+  });
+});
+
+// Cross-fades #rows (opacity only) around a resetView content swap — see
+// render() below. Reuses onceTransitionEnd (defined above, next to the
+// dropdown animations) to wait out the fade-out before actually touching
+// the DOM.
+function fadeRowsOut(rowsEl, cb) {
+  if (getComputedStyle(rowsEl).opacity === "0") { cb(); return; }
+  rowsEl.style.opacity = "0";
+  onceTransitionEnd(rowsEl, "opacity", cb);
+}
+function fadeRowsIn(rowsEl) {
+  rowsEl.style.opacity = "0";
+  rowsEl.offsetHeight; // force layout flush so the freshly-swapped content starts from opacity:0 before animating to 1, instead of the browser coalescing both writes and skipping the transition
+
+  // Double rAF before actually starting the reveal — Safari specifically
+  // (this file's rows are mask-image-heavy: badges, video/contacts panels,
+  // and Safari's mask-image rasterizing is the documented weak point
+  // throughout this project already, see scripts/render-masks.py) needs
+  // noticeably longer to paint a freshly-inserted batch of 30 rows than
+  // Chrome does — and needs longer for the *bigger* masks (the 884x509
+  // video panel, the 391x509 contacts panel) than the small ones (the
+  // ~111px rank/favorite badges). Starting the opacity transition
+  // immediately after insertion only gave Safari the transition's own
+  // 250ms to finish that paint work *while already becoming visible*, so
+  // cheap-to-paint pieces (plain text, small masks) would show up before
+  // the expensive ones had finished rasterizing — a brief flash of "just
+  // the small badges" during every filter/result update, Safari only.
+  // Note: see also the comment on .rows in CSS above regarding explicit
+  // stacking contexts (z-index: 1, isolation: isolate) and CALayer groups
+  // (translate3d, will-change: opacity), which prevent Safari from hoisting
+  // z-index: 2 masked badges out of the container opacity transition.
+  // rAF fires before the *next* paint, so scheduling the reveal for the
+  // *second* one guarantees a real paint of the new (still-opacity:0, so
+  // invisible) content already happened in between — nothing left to
+  // catch up on once opacity actually starts moving.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      rowsEl.style.opacity = "1";
+    });
+  });
+}
+
+// Swaps #rows to one of the empty-state messages. The favorites-empty case
+// gets special handling: collapsing straight to it can leave the page far
+// shorter than wherever the user had scrolled to (they emptied out their
+// favorites while deep in a long list), and a document that suddenly can't
+// be scrolled that far anymore makes the browser itself snap scrollY back
+// up *instantly* the moment rescale() shrinks body's min-height below it —
+// there's no native "smooth" version of that clamp. So: swap the DOM and
+// measure where that native clamp *would* land first, then undo it (repin
+// the page tall, put scrollY back where the user actually was) and glide
+// there ourselves with the same easing used elsewhere on the page, only
+// letting the page actually shrink once that glide finishes.
+function showEmptyState(rowsEl, cls, msg) {
+  const isFavEmpty = cls.includes("empty-state-favorites");
+  const startScrollY = window.scrollY;
+  const startBodyMinHeight = document.body.style.minHeight;
+
+  rowsEl.innerHTML = `<div class="${cls}">${msg}</div>`;
+  rescale();
+
+  if (!isFavEmpty) return;
+  const targetScrollY = window.scrollY; // wherever rescale()'s shrink just (instantly) clamped to
+  if (targetScrollY >= startScrollY) return; // wasn't below the empty state's own lowest point to begin with
+
+  document.body.style.minHeight = Math.max(document.documentElement.scrollHeight, startScrollY + window.innerHeight) + "px";
+  // Force a synchronous reflow before scrolling back up — without this,
+  // the browser hasn't actually applied the taller min-height yet by the
+  // time scrollTo below runs, so it still measures the *old* (short) page
+  // and clamps right back to targetScrollY instead of genuinely restoring
+  // startScrollY, leaving nothing for the rAF animation below to animate.
+  document.body.offsetHeight;
+  window.scrollTo(0, startScrollY);
+
+  const duration = 500;
+  const startTime = performance.now();
+  requestAnimationFrame(function step(now) {
+    const t = Math.min(1, (now - startTime) / duration);
+    window.scrollTo(0, startScrollY + (targetScrollY - startScrollY) * easeInOutCubic(t));
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      document.body.style.minHeight = startBodyMinHeight;
+      rescale();
+    }
+  });
+}
+
+function render(resetView = false) {
+  // toggling a favorite, applying preferred contacts, etc. all funnel
+  // through here too, not just genuine filter/dataset changes —
+  // re-rendering only ROW_BATCH_SIZE rows every time would yank the list
+  // back to the top batch out from under someone who'd scrolled deep in
+  // just to favorite something. Keep however many rows were already
+  // visible for those; callers that actually change *what* the list is
+  // (new filter results, switching to/from favorites-only, re-sorting by
+  // priority) pass resetView so they start clean at the top instead.
+  const previousRenderedCount = resetView ? 0 : renderedCount;
+  currentList = sortAndFilter();
+  renderedCount = 0;
+
+  const rowsEl = document.getElementById("rows");
+
+  const applyContent = () => {
+    // Safe to clear right at the top, before touching the DOM at all: the
+    // rest of this function runs synchronously with no await/microtask
+    // gap, so nothing else (a scroll handler, say) can possibly observe
+    // this as false until the DOM rebuild below has already finished.
+    renderTransitionInProgress = false;
+    if (!currentList.length) {
+      const msg = showingFavoritesOnly ? "you don't love anything. heartless." : "Nothing matches the current filter.";
+      const cls = showingFavoritesOnly ? "empty-state empty-state-favorites" : "empty-state";
+      showEmptyState(rowsEl, cls, msg);
+    } else {
+      rowsEl.innerHTML = `<div id="scrollSentinel"></div>`;
+      const initialCount = Math.max(ROW_BATCH_SIZE, Math.min(previousRenderedCount, currentList.length));
+      renderMoreRows(initialCount);
+      // in case that initial batch doesn't even fill the viewport (e.g. a
+      // very tall/short window), keep loading more until it does or the
+      // list runs out, instead of waiting for a scroll event that may
+      // never come
+      maybeLoadMoreRows();
+    }
+    if (resetView) fadeRowsIn(rowsEl);
+  };
+
+  // Only cross-fade for a genuine filter/dataset change (resetView), and
+  // only if there's actually something on screen yet to fade out (skips
+  // the fade on first page load, when #rows starts out empty) — the
+  // favorite-toggle/etc. re-renders (resetView=false) stay instant, since
+  // fading the whole visible batch just to reflect one heart click would
+  // read as overkill and would interrupt anyone mid-scroll.
+  if (resetView && rowsEl.children.length) {
+    renderTransitionInProgress = true;
+    fadeRowsOut(rowsEl, applyContent);
+  } else {
+    applyContent();
+  }
+}
+
+/* ---------------- apply-contacts button ---------------- */
+
+/* "preferred contacts" changes are staged in pendingPriority (see
+   renderContactsDropdown) rather than applied immediately, so picking
+   several contact types doesn't re-sort/re-render the list after every
+   click. This button — visible only while there's a staged change not yet
+   reflected in the results — copies it over to appliedPriority and
+   re-renders. It never touches the backend/database. */
+const applyContactsBtn = document.getElementById("applyContactsBtn");
+
+function prioritiesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  const setB = new Set(b);
+  return a.every(v => setB.has(v));
+}
+
+function updateApplyButton() {
+  const shouldShow = !prioritiesEqual(pendingPriority, appliedPriority);
+  if (shouldShow) {
+    applyContactsBtn.classList.remove("is-hidden");
+  } else {
+    applyContactsBtn.classList.add("is-hidden");
+  }
+}
+
+applyContactsBtn.addEventListener("click", () => {
+  appliedPriority = pendingPriority.slice();
+  render(true);
+  updateApplyButton();
+});
+
+/* ---------------- scale-to-fit 1920 canvas ---------------- */
+
+/* `zoom` instead of `transform: scale` — transform only stretches an
+   already-painted bitmap, and Safari caches SVG filter output (our
+   hand-drawn feTurbulence/feDisplacementMap look) at a fixed, low-DPI
+   resolution before that stretch happens, so filtered pieces come out
+   soft/blocky there (Chromium re-rasterizes correctly and hides the bug).
+   zoom actually re-lays-out the subtree at the target size, so every
+   filter is recomputed at real resolution regardless of browser. */
+// Page-wide scale multiplier on top of the normal scale-to-fit factor
+// below — 0.7 shrinks every element (fonts, paddings, masks, gaps, the
+// works) to 70% of its previous on-screen size while every design-space
+// CSS px value in this file stays untouched, since it's all still
+// expressed relative to canvas's own 1920px reference and just gets
+// multiplied through here. #canvas no longer spans the full viewport
+// width once this is under 1, hence the margin:0 auto added alongside it.
+const PAGE_SCALE = 0.7;
+
+function rescale() {
+  const canvas = document.getElementById("canvas");
+  const scale = (window.innerWidth / 1920) * PAGE_SCALE;
+  canvas.style.zoom = scale;
+  // scrollHeight is measured in canvas's own unzoomed local pixels, not the
+  // zoomed size actually painted on screen — using it directly here left
+  // body far taller than the visible canvas, exposing its plain (unstriped)
+  // background beneath.
+  //
+  // min-height, not height: this multiplication is only ever an
+  // approximation of canvas's true on-screen height (a sub-pixel rounding
+  // gap between the two was the actual cause of the long-hunted
+  // intermittent scroll bug — see the html/body overflow comment above).
+  // A plain height can end up a fraction of a pixel shorter than canvas's
+  // real height; min-height can't undershoot the same way, since body's
+  // box then just grows to fit canvas if canvas is ever taller than this
+  // estimate, instead of clipping/mismatching against it.
+  document.body.style.minHeight = canvas.scrollHeight * scale + "px";
+
+  // see the .page-vignette comment in <style> — position:fixed there now,
+  // so this is purely about keeping its width proportional to the design,
+  // the same zoom trick as #fixedUiAnchor just above.
+  document.querySelectorAll(".page-vignette").forEach(el => {
+    el.style.zoom = scale;
+  });
+
+  // centers "you don't love anything. heartless." between the header's
+  // bottom edge and the real screen bottom (see .empty-state-favorites in
+  // <style>) — 351 is #toolbarWrap's own height, and .page's padding-top
+  // (40px) already eats into that span before this element even starts,
+  // so both get subtracted from the remaining viewport space (converted
+  // to canvas-local units the same way the vignette's width is) to get
+  // this element's own height right; flex centering (in CSS) does the
+  // rest. Recomputed here so it stays centered if the window resizes
+  // while this state is showing, not just when it first appears.
+  const favEmpty = document.querySelector(".empty-state-favorites");
+  if (favEmpty) {
+    favEmpty.style.height = ((window.innerHeight / scale) - 351 - 40) + "px";
+  }
+  refitAllRowTitles();
+}
+window.addEventListener("resize", rescale);
+
+loadGames();
+loadLastUpdated();
+
+// Re-fit titles (and re-measure descriptions' own line counts — same
+// font, same async-loading concern) after async web fonts finish loading,
+// so both are computed against true Darumadrop One glyph metrics rather
+// than the narrower fallback font.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    refitAllRowTitles();
+    refitAllRowDescriptions();
+    setTimeout(refitAllRowTitles, 500);
+    setTimeout(refitAllRowDescriptions, 500);
+    setTimeout(refitAllRowTitles, 1500);
+    setTimeout(refitAllRowDescriptions, 1500);
+  });
+} else {
+  setTimeout(refitAllRowTitles, 500);
+  setTimeout(refitAllRowDescriptions, 500);
+  setTimeout(refitAllRowTitles, 1500);
+  setTimeout(refitAllRowDescriptions, 1500);
+}
+// .ready's timing is the flaky part (see above) — "loadingdone" is a plain
+// FontFaceSet event that fires whenever a font the page actually tried to
+// use finishes loading, in every browser that supports it, so it catches
+// a late Darumadrop swap this file's own fixed 500/1500ms guesses above
+// might land before or after (a slow/throttled connection can push the
+// real swap past both). A description measured against the fallback
+// font's narrower glyphs can under-count its own line count — its
+// max-height then ends up shorter than the real Darumadrop text needs,
+// which is what shows up as an unwanted scrollbar on something that's
+// genuinely 10 lines or fewer.
+if (document.fonts && document.fonts.addEventListener) {
+  document.fonts.addEventListener("loadingdone", () => {
+    refitAllRowTitles();
+    refitAllRowDescriptions();
+  });
+}
+
+// Preloader: covers the whole page on entry and after 0.2s slides down with non-linear acceleration
+setTimeout(() => {
+  const preloader = document.getElementById("preloader");
+  if (preloader) {
+    preloader.classList.add("hide");
+    preloader.addEventListener("transitionend", () => preloader.remove(), { once: true });
+    setTimeout(() => preloader.remove(), 1200);
+  }
+}, 200);
+</script>
+</body>
+</html>
