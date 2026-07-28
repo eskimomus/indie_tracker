@@ -240,6 +240,12 @@
       overflow-x: hidden !important;
       background-color: var(--bg-base);
     }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
     #lastUpdated {
       top: 161px !important;
       right: 0 !important;
@@ -1477,7 +1483,7 @@
       var c = document.getElementById("canvas");
       if (c) {
         var w = window.innerWidth;
-        var ps = w <= 768 ? 1.0 : (w <= 1024 ? 0.8 : 0.7);
+        var ps = w <= 768 ? 1.2 : (w <= 1024 ? 0.8 : 0.7);
         c.style.zoom = (w / 1920) * ps;
       }
     })();
@@ -2751,7 +2757,7 @@ applyContactsBtn.addEventListener("click", () => {
 // width once this is under 1, hence the margin:0 auto added alongside it.
 function getPageScale() {
   const w = window.innerWidth;
-  if (w <= 768) return 1.0; // 1.0 = страница занимает ровно 100% ширины экрана, выровнена по центру, без горизонтальной прокрутки
+  if (w <= 768) return 1.2; // 1.2 (+20% к 1.0) + flex-центрирование на body = крупный масштаб без смещения и без горизонтального скролла
   if (w <= 1024) return 0.8;
   return 0.7;
 }
