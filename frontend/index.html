@@ -1652,7 +1652,11 @@ async function playVideoInline(container, videoId, watchUrl) {
   // ordinary, unzoomed iframe matching its own size exactly, regardless
   // of whatever the rest of the page's zoom is doing.
   const canvasScale = parseFloat(document.getElementById("canvas").style.zoom) || 1;
-  container.innerHTML = `<div id="${wrapId}" style="zoom:${1 / canvasScale}; width:${100 * canvasScale}%; height:${100 * canvasScale}%;"><div id="${playerId}" style="width:100%; height:100%;"></div></div>`;
+  const rect = container.getBoundingClientRect();
+  const w = Math.round(rect.width);
+  const h = Math.round(rect.height);
+
+  container.innerHTML = `<div id="${wrapId}" style="zoom:${1 / canvasScale}; width:${w}px; height:${h}px;"><div id="${playerId}" style="width:100%; height:100%;"></div></div>`;
   await ytApiReadyPromise;
   // the click may have re-rendered the row (filter/sort change) before the
   // API finished loading — don't mount a player into a detached node
