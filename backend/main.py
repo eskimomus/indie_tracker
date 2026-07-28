@@ -4,14 +4,14 @@ load_dotenv()  # читает backend/.env и подставляет ключи 
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from fastapi import FastAPI, Depends, Query
+from fastapi import FastAPI, Depends, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 
 from database import init_db, get_session, get_db_path
 from models import Game, Finding
-from scheduler import start_scheduler
+from scheduler import start_scheduler, run_all_ingestion
 from ingestion.description_cleaner import clean_video_description
 
 app = FastAPI(title="Indie Game Tracker")
@@ -56,6 +56,13 @@ def last_updated():
     # silently throwing the "N ago" math off by the server's UTC offset.
     mtime = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc)
     return {"last_updated": mtime.isoformat()}
+
+
+@app.get("/api/ingest/run-now")
+@app.post("/api/ingest/run-now")
+def trigger_ingestion(background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_all_ingestion)
+    return {"status": "started", "message": "Сбор данных запущен в фоновом режиме"}
 
 
 @app.get("/api/games")

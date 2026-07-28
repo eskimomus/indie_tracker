@@ -9,10 +9,12 @@
 * несколько запусков в день — комфортно.
 """
 import logging
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from database import engine
+from models import Game
 from ingestion.youtube import fetch_youtube_findings
 
 logger = logging.getLogger("scheduler")
@@ -30,8 +32,23 @@ def run_all_ingestion():
                 logger.exception("Сбой при сборе данных с %s", name)
 
 
+def check_and_run_initial():
+    try:
+        with Session(engine) as session:
+            count = len(session.exec(select(Game.id).limit(1)).all())
+            if count == 0:
+                logger.info("База данных пуста! Запускаю первичный сбор данных...")
+                run_all_ingestion()
+            else:
+                logger.info("В базе уже есть игры, первичный сбор не требуется.")
+    except Exception:
+        logger.exception("Ошибка при проверке пустой базы")
+
+
 def start_scheduler():
     scheduler = BackgroundScheduler()
+    # Автоматически проверяем и запускаем первичный сбор через 3 секунды после старта
+    scheduler.add_job(check_and_run_initial, "date", run_date=datetime.now() + timedelta(seconds=3))
     scheduler.add_job(run_all_ingestion, "interval", hours=6, next_run_time=None)
     scheduler.start()
     return scheduler
