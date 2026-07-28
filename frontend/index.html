@@ -1645,21 +1645,16 @@ async function playVideoInline(container, videoId, watchUrl) {
   // post-zoom size, in both browsers). YouTube then sees a perfectly
   // ordinary, unzoomed iframe matching its own size exactly, regardless
   // of whatever the rest of the page's zoom is doing.
-  const canvasScale = parseFloat(document.getElementById("canvas").style.zoom) || 1;
-  const rect = container.getBoundingClientRect();
-  const w = Math.round(rect.width);
-  const h = Math.round(rect.height);
-
-  container.innerHTML = `<div id="${wrapId}" style="zoom:${1 / canvasScale}; width:${w}px; height:${h}px;"><div id="${playerId}"></div></div>`;
+  container.innerHTML = `<div id="${playerId}" style="width:100%; height:100%;"></div>`;
   await ytApiReadyPromise;
   // the click may have re-rendered the row (filter/sort change) before the
   // API finished loading — don't mount a player into a detached node
   if (!document.getElementById(playerId)) return;
   const player = new YT.Player(playerId, {
-    width: w,
-    height: h,
+    width: "100%",
+    height: "100%",
     videoId,
-    playerVars: { autoplay: 1 },
+    playerVars: { autoplay: 1, playsinline: 1, rel: 0 },
     events: {
       onError: () => {
         showEmbedError(container, watchUrl);
