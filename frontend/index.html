@@ -230,6 +230,12 @@
     color: var(--text);
   }
 
+  @media (max-width: 1024px) {
+    html, body {
+      overflow-x: auto !important;
+    }
+  }
+
   /* fixed to the viewport (not a descendant of #canvas) so its size never
      depends on how many rows are rendered — an angled repeating-gradient's
      phase is computed from its own box dimensions, so anchoring it to
@@ -1454,7 +1460,11 @@
   <script>
     (function() {
       var c = document.getElementById("canvas");
-      if (c) c.style.zoom = (window.innerWidth / 1920) * 0.7;
+      if (c) {
+        var w = window.innerWidth;
+        var ps = w <= 600 ? 1.5 : (w <= 800 ? 1.2 : (w <= 1024 ? 0.9 : 0.7));
+        c.style.zoom = (w / 1920) * ps;
+      }
     })();
   </script>
   <div id="toolbarWrap">
@@ -2328,7 +2338,7 @@ function fitRowTitle(link, fullTitle) {
   // bounding width to unzoomed design coordinates by dividing by the current scale.
   // This ensures text width and container width are compared in exact 100% unscaled design
   // coordinates (1920px width reference), regardless of browser zoom behavior or window size.
-  const scale = parseFloat(document.getElementById("canvas").style.zoom) || (window.innerWidth / 1920 * PAGE_SCALE) || 1;
+  const scale = parseFloat(document.getElementById("canvas").style.zoom) || (window.innerWidth / 1920 * getPageScale()) || 1;
   const cs = getComputedStyle(link);
   titleMeasureCtx.font = `${cs.fontSize} ${cs.fontFamily}`;
   const maxWidth = container.getBoundingClientRect().width / scale;
@@ -2728,11 +2738,17 @@ applyContactsBtn.addEventListener("click", () => {
 // expressed relative to canvas's own 1920px reference and just gets
 // multiplied through here. #canvas no longer spans the full viewport
 // width once this is under 1, hence the margin:0 auto added alongside it.
-const PAGE_SCALE = 0.7;
+function getPageScale() {
+  const w = window.innerWidth;
+  if (w <= 600) return 1.5;
+  if (w <= 800) return 1.2;
+  if (w <= 1024) return 0.9;
+  return 0.7;
+}
 
 function rescale() {
   const canvas = document.getElementById("canvas");
-  const scale = (window.innerWidth / 1920) * PAGE_SCALE;
+  const scale = (window.innerWidth / 1920) * getPageScale();
   canvas.style.zoom = scale;
   // scrollHeight is measured in canvas's own unzoomed local pixels, not the
   // zoomed size actually painted on screen — using it directly here left
