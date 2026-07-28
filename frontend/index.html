@@ -1451,6 +1451,12 @@
 <div id="bgStripes"></div>
 
 <div id="canvas">
+  <script>
+    (function() {
+      var c = document.getElementById("canvas");
+      if (c) c.style.zoom = (window.innerWidth / 1920) * 0.7;
+    })();
+  </script>
   <div id="toolbarWrap">
     <h1 id="pageTitle"><a href="https://eskimus.com" target="_blank" rel="noopener">eskimo's</a>&nbsp;indie tracker</h1>
     <p id="lastUpdated"></p>
@@ -2767,6 +2773,7 @@ function rescale() {
 }
 window.addEventListener("resize", rescale);
 
+rescale();
 loadGames();
 loadLastUpdated();
 
