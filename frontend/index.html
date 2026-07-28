@@ -2849,7 +2849,7 @@ if (document.fonts && document.fonts.addEventListener) {
   });
 }
 
-// Preloader: covers the whole page on entry and after 0.2s slides down with non-linear acceleration
+// Preloader: covers the whole page on entry and after 1.0s slides down with non-linear acceleration
 setTimeout(() => {
   const preloader = document.getElementById("preloader");
   if (preloader) {
@@ -2857,7 +2857,7 @@ setTimeout(() => {
     preloader.addEventListener("transitionend", () => preloader.remove(), { once: true });
     setTimeout(() => preloader.remove(), 1200);
   }
-}, 200);
+}, 1000);
 </script>
 </body>
 </html>
