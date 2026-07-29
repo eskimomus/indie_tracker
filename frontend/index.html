@@ -60,6 +60,7 @@
     --option-muted: #818D77;
     --option-hover: #B5C5A8;
     --contact-label-inactive: #6B6B6B;
+    --filter-option-muted: #7E8A74;
 
     --star-color: #FFC400;
     --cross-color: #BE4545;
@@ -144,7 +145,13 @@
   .divider, .video-bg, .contacts-bg, #toolbarBg,
   .badge-rank-inner, .badge-fav-inner, .fav-heart-mask, #applyBtnBg,
   .play-btn-circle, .play-btn-triangle, .pill-bg, #udPanel .dd-bg,
-  .more-btn-back, .more-btn-symbol, .description-back {
+  .more-btn-back, .more-btn-symbol, .description-back,
+  .line-mobile, .video-bg-mobile, .contact-pill-back-mobile,
+  .badge-rank-inner-mobile, .badge-fav-inner-mobile, .fav-heart-mask-mobile,
+  .more-btn-back-mobile, .more-btn-symbol-mobile,
+  .filter-drawer-back-mobile, .filter-tab-back-mobile, .filter-tab-flag-mobile,
+  .filter-title-strip-mobile, .filter-title-accent-mobile, .filter-title-icon-bg-mobile,
+  .filter-contacts-strip-mobile, .filter-sort-icon-bars-mobile {
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
@@ -1493,6 +1500,582 @@
     transform: translate3d(0, 100%, 0);
     pointer-events: none;
   }
+
+  /* ============================================================
+     MOBILE TEMPLATE — a ground-up separate design (not a rescaled
+     copy of desktop's #canvas), on its own 1601px-wide reference
+     canvas. Every px value below is taken verbatim from that spec,
+     exactly like #canvas's own values are taken verbatim from its
+     1920px one — #canvasMobile gets its own independent zoom in
+     rescale() (see the script below) so these numbers land correctly
+     at any real screen width. Filters/favorites-drawer and the
+     description backdrops are still pending a later spec pass; only
+     the always-visible per-row layout is built here. Hidden above
+     768px (see the closing media query at the bottom of this block);
+     #canvas is hidden at/below it instead.
+     Deliberately the LAST block in this stylesheet: several rules below
+     reuse desktop class names (.video-thumb, .play-btn, ...) purely so
+     attachRowListeners()'s existing selectors pick these elements up too
+     (see renderRowHtmlMobile), but that means desktop's own same-
+     specificity rules for those classes would otherwise win any
+     overlapping property by cascade order — e.g. .video-thumb's
+     `inset: 12.5px` silently beat .video-thumb-mobile's `inset: 22px
+     25px` the first time this was earlier in the file. Being last here
+     guarantees these mobile rules win instead, without needing higher
+     specificity or !important anywhere. */
+  #canvasMobile {
+    display: none;
+    position: relative;
+    width: 1601px;
+    margin: 0 auto;
+  }
+  .mobile-title {
+    position: absolute;
+    top: 328px;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    text-align: center;
+    font-weight: 400;
+    font-size: 160px;
+    line-height: 120px;
+    color: var(--text);
+  }
+  .mobile-title a { color: inherit; text-decoration: none; transition: color 0.2s ease; }
+  .mobile-title a:hover { color: var(--eskimo-hover, #B5C5A8); }
+  .mobile-last-updated {
+    position: absolute;
+    top: 588px;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    text-align: center;
+    font-size: 70px;
+    color: var(--last-updated-color);
+  }
+
+  .rows-mobile {
+    position: relative;
+    /* first row's own title sits 722px below the page's top edge */
+    padding-top: 722px;
+    padding-bottom: 80px;
+  }
+  .row-mobile {
+    position: relative;
+    z-index: 1;
+    /* isolation+translate3d: same WebKit CALayer stacking-context fix as
+       desktop's .row/.rows (see the comment there) — masked, positioned
+       descendants (video, badges, contact pills) can otherwise get
+       hoisted out of this row's own stacking order in Safari. */
+    isolation: isolate;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    width: 1601px;
+    /* Repeat period from one row's title to the next's, derived from the
+       spec chain: title(0) -> top-line(190) -> video-back(242, +738 =
+       980) -> contacts row(1000, +194 = 1194) -> bottom line(1214, +32 =
+       1246) -> 320px gap -> next video-back(1566) -> next title sits
+       242px above *its own* video-back, same as this row, so next title
+       = 1566 - 242 = 1324. */
+    height: 1324px;
+  }
+  .row-title-mobile {
+    position: absolute;
+    top: 0;
+    left: 226px;
+    width: 1149px; /* 1601 - 226*2 (mirrored right margin) */
+    font-size: 75px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row-title-mobile a { color: inherit; text-decoration: none; }
+  .row-meta-mobile {
+    position: absolute;
+    top: 71px;
+    left: 226px;
+    font-size: 70px;
+    color: #B5C6A6;
+    white-space: nowrap;
+  }
+
+  .line-mobile {
+    position: absolute;
+    left: 160px; /* (1601-1281)/2 — page-centered, same as video-back below */
+    width: 1281px;
+    height: 32px;
+    background-color: var(--panel-dark);
+    opacity: 0.6;
+    -webkit-mask-image: url(assets/masks/m-line.png);
+    mask-image: url(assets/masks/m-line.png);
+  }
+  .row-topline-mobile { top: 190px; }
+  .row-bottomline-mobile { top: 1214px; }
+
+  .video-wrap-mobile {
+    position: absolute;
+    z-index: 1;
+    isolation: isolate;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    top: 242px;
+    left: 160px;
+    width: 1281px;
+    height: 738px;
+  }
+  .video-bg-mobile {
+    position: absolute;
+    inset: -6px; /* m-video-back's own 6px wobble margin, same convention as desktop's .video-bg */
+    background-color: var(--panel-dark);
+    -webkit-mask-image: url(assets/masks/m-video-back.png);
+    mask-image: url(assets/masks/m-video-back.png);
+  }
+  .video-thumb-mobile {
+    position: absolute;
+    /* 1231x694 centered in 1281x738: (1281-1231)/2=25, (738-694)/2=22 */
+    inset: 22px 25px;
+    overflow: hidden;
+    border-radius: 16px;
+    cursor: pointer;
+  }
+  .video-thumb-mobile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .video-thumb-mobile iframe { width: 100%; height: 100%; border: 0; display: block; }
+  /* Bigger play button for mobile only — .play-btn/-circle/-triangle stay
+     desktop's shared classes (reused for JS wiring), so this is scoped to
+     .video-thumb-mobile specifically rather than resizing them globally.
+     Still centered via .play-btn's own top:50%/left:50%/translate(-50%,
+     -50%) (see <style> above) — that centering math is size-agnostic, so
+     just changing width/height here is enough, no separate re-centering
+     needed. .play-btn-circle/-triangle both fill it via inset:0. */
+  .video-thumb-mobile .play-btn {
+    width: 189px;
+    height: 182.66px;
+  }
+
+  .contacts-row-mobile {
+    position: absolute;
+    top: 1000px;
+    left: 0;
+    width: 1601px;
+    height: 194px;
+  }
+  .contact-pill-mobile {
+    /* Backdrop (mask+opacity) and content (icon+badge) are siblings, not
+       parent/child (see .contact-pill-back-mobile below) — this element
+       is just a positioning box, no visual of its own. Combining backdrop
+       and content into one element was the earlier bug here: CSS opacity
+       on a parent dims its entire subtree together (icons looked washed
+       out), and mask-image clips anything that visually extends past the
+       masked shape (the star/cross badges, deliberately positioned to
+       stick out past the icon's own edge, got clipped at the pill's own
+       boundary) — exactly matching .video-bg/.video-thumb or
+       .description-back/.description-text elsewhere in this file, which
+       all keep backdrop and content as separate siblings for the same
+       reason.
+       isolation+translate3d: same WebKit CALayer stacking-context fix as
+       .row-mobile above. */
+    position: absolute;
+    isolation: isolate;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    top: 0;
+    width: 230px;
+    height: 194px;
+  }
+  .contact-pill-back-mobile {
+    position: absolute;
+    inset: 0;
+    background-color: var(--panel-dark);
+    opacity: 0.6;
+    -webkit-mask-image: url(assets/masks/m-contacts-back.png);
+    mask-image: url(assets/masks/m-contacts-back.png);
+  }
+  .contact-pill-mobile a {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+  .contact-icon-wrap-mobile {
+    position: absolute;
+    /* 148x148 centered in the pill's 230x194 visible rect: (230-148)/2=41, (194-148)/2=23 */
+    left: 41px;
+    top: 23px;
+    width: 148px;
+    height: 148px;
+  }
+  .contact-icon-wrap-mobile .icon { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .contact-icon-wrap-mobile .badge {
+    /* desktop's -12px at its 79px icon, scaled by 148/79 */
+    position: absolute; top: -22.5px; left: -22.5px;
+  }
+  .contact-icon-wrap-mobile .badge-cross { width: 61.71px; height: 61.71px; }
+  .contact-icon-wrap-mobile .badge-star { width: 75.78px; height: 72.23px; }
+
+  .badge-rank-mobile, .badge-fav-mobile {
+    position: absolute;
+    /* .video-thumb (reused for JS wiring, see renderRowHtmlMobile) carries
+       its own desktop z-index:1 — without matching or beating that here,
+       these paint *under* the video despite coming later in the markup,
+       since a positive z-index always wins over z-index:auto regardless
+       of source order. 10 matches desktop's own .badge-rank/.badge-fav. */
+    z-index: 10;
+    left: 81px;
+    width: 181px;
+    height: 181px;
+  }
+  .badge-rank-mobile { top: 178px; }
+  .badge-fav-mobile { top: 384px; cursor: pointer; } /* 178 + 181 + 25 */
+  .badge-rank-inner-mobile, .badge-fav-inner-mobile {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  .badge-rank-inner-mobile {
+    background-color: var(--badge-rank);
+    -webkit-mask-image: url(assets/masks/rank-circle.png);
+    mask-image: url(assets/masks/rank-circle.png);
+  }
+  .badge-fav-inner-mobile {
+    background-color: var(--badge-fav-inactive);
+    -webkit-mask-image: url(assets/masks/fav-circle.png);
+    mask-image: url(assets/masks/fav-circle.png);
+    transition: background-color 0.3s ease;
+  }
+  .badge-fav-mobile:not(.active):hover .badge-fav-inner-mobile { background-color: #B0AFA9; }
+  .badge-fav-mobile.active .badge-fav-inner-mobile { background-color: var(--badge-fav-active); }
+  .badge-fav-mobile.active:hover .badge-fav-inner-mobile { background-color: #D15167; }
+  .badge-fav-mobile.active .fav-heart-mask-mobile { background-color: var(--fav-heart-color-active); }
+  .badge-rank-num-mobile {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 85px;
+    color: var(--text);
+    /* desktop's -7px nudge at 45px font/111px circle, scaled by 181/111 */
+    transform: translateY(-11.4px);
+  }
+  .fav-heart-mask-mobile {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    /* desktop's 47x41 at its 112px circle, scaled by 181/112 */
+    width: 75.96px; height: 66.26px;
+    background-color: var(--fav-heart-color);
+    -webkit-mask-image: url(assets/masks/fav-heart.png?v=2);
+    mask-image: url(assets/masks/fav-heart.png?v=2);
+    transition: background-color 0.3s ease;
+  }
+  .badge-fav-mobile:not(.active):hover .fav-heart-mask-mobile { background-color: #FFFFFF; }
+
+  .more-btn-mobile {
+    position: absolute;
+    left: 111.5px; /* 171.5 - 60 — 171.5 is the rank icon's own horizontal center (81 + 181/2) */
+    top: 1170px; /* 1230 - 60 — 1230 is the bottom-line's own vertical center (1214 + 32/2) */
+    width: 120px;
+    height: 120px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .more-btn-back-mobile {
+    position: absolute;
+    inset: 0;
+    background-color: var(--more-bg);
+    -webkit-mask-image: url(assets/masks/more-back.png?v=2);
+    mask-image: url(assets/masks/more-back.png?v=2);
+    transition: background-color 0.25s ease;
+  }
+  .more-btn-mobile:hover .more-btn-back-mobile { background-color: var(--more-bg-hover); }
+  .more-btn-symbol-mobile {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 46.57px; /* desktop's 26px at its 67px back, scaled by 120/67 */
+    height: 46.57px;
+    background-color: var(--text);
+    -webkit-mask-image: url(assets/masks/more-symbol.png?v=2);
+    mask-image: url(assets/masks/more-symbol.png?v=2);
+    transform: translate(-50%, -50%) rotate(0deg);
+    transition: transform 0.3s cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  .more-btn-mobile.open .more-btn-symbol-mobile { transform: translate(-50%, -50%) rotate(45deg); }
+
+  /* Bare-minimum expand/collapse — no backdrop yet (pending the
+     description-panel spec pass) — just proves the toggle end to end. */
+  .row-description-wrap-mobile {
+    position: absolute;
+    top: 1246px;
+    left: 160px;
+    width: 1281px;
+    height: 0;
+    overflow: hidden;
+    transition: height 0.5s cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  .description-text-mobile {
+    padding: 20px 0;
+    font-size: 55px;
+    line-height: 1.4;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Filter drawer (Group 74.svg) — backdrop + slide-in/out mechanic only;
+     the actual filter controls inside it come in a later pass. Sibling of
+     #canvasMobile (not a descendant), position:fixed + its own zoom (set
+     in rescale(), matching mobileScale) — same "fixed elements next to
+     the zoomed canvas need their own zoom assignment" pattern as
+     .page-vignette.
+     top:0/bottom:0 rather than a declared height, for the exact same
+     reason as .page-vignette's own top/bottom (see that comment): a
+     *declared* length (height:3468px, height:100dvh, whatever) on an
+     element that carries its own zoom gets re-scaled by that zoom on top
+     of the real size actually wanted; top+bottom is a solved constraint
+     against the containing block instead, so it comes out to the true
+     full-viewport height regardless.
+     left, by contrast, *is* meant to scale with this element's own zoom
+     here — unlike #canvas's left (a correction computed from the real,
+     unzoomed viewport width), -1243/0 below are plain entries in the same
+     1601-wide mobile design-space every other measurement in this file's
+     mobile section already uses, so they need to ride the same zoom as
+     everything else, not cancel it out. */
+  #filterDrawerMobile {
+    display: none;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    /* -1243 = 130 (desired visible sliver, per the user's spec) minus
+       1373 (the tab's own right edge in Group 74.svg's local coordinates,
+       903+470) — closing the drawer means shifting it left by its own
+       body width plus change, so only that last 130px of the tab (where
+       the flag icon itself sits) remains on-screen. */
+    left: -1243px;
+    width: 1376px;
+    z-index: 50;
+    /* closing: plain ease back in, no overshoot — only the *opening*
+       motion gets the spring (see .open below); this rule governs the
+       transition because it's the destination style when .open is
+       removed. */
+    transition: left 0.4s cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  #filterDrawerMobile.open {
+    /* 0 = flush with the page's own left edge — verified against the
+       user's other constraint (228px of background visible past the
+       tab's own right edge when open): 1601 (page width) - 1373 (tab's
+       right edge, local) = 228. */
+    left: 0;
+    /* opening: standard "ease-out-back" curve — overshoots ~10% past 0
+       then settles, read as a small spring/bounce. Per user request;
+       this is the destination style when .open is added, so it's the
+       one that governs the opening transition. */
+    transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .filter-drawer-back-mobile {
+    position: absolute;
+    top: -6px;
+    bottom: -6px;
+    left: -6px;
+    width: 1252px; /* 1240 visible + 6px margin each side */
+    background-color: var(--panel-dark);
+    -webkit-mask-image: url(assets/masks/filter-drawer-back.png);
+    mask-image: url(assets/masks/filter-drawer-back.png);
+  }
+  .filter-tab-mobile {
+    position: absolute;
+    left: 903px;
+    top: 376px;
+    width: 470px;
+    height: 248px;
+    cursor: pointer;
+  }
+  .filter-tab-back-mobile {
+    position: absolute;
+    inset: -6px;
+    background-color: var(--panel-dark);
+    -webkit-mask-image: url(assets/masks/filter-tab-back.png);
+    mask-image: url(assets/masks/filter-tab-back.png);
+  }
+  .filter-tab-flag-mobile {
+    position: absolute;
+    /* flag's own bbox in Group 74.svg is local (1270,473); relative to
+       the tab backdrop's own origin (903,376): 1270-903=367, 473-376=97 */
+    left: 367px;
+    top: 97px;
+    width: 68px;
+    height: 62px;
+    background-color: #A8BB97;
+    -webkit-mask-image: url(assets/masks/filter-tab-flag.png);
+    mask-image: url(assets/masks/filter-tab-flag.png);
+  }
+
+  /* Group 74.svg's 4th layer, missed the first time around: a plain,
+     non-wobbly rect in the drawer's own panel color, painted last (on top
+     of both the main backdrop and the part of the tab it overlaps),
+     stopping 25px short of the backdrop's own right edge (1215 vs 1240).
+     Net effect: flattens the wobbly top/left/bottom edges — never meant
+     to read as a design feature, they just fall out of rx+wobble on a
+     rounded rect — while leaving the *right* edge, the one boundary
+     actually meant to be seen, wobbly. Extended well past the source's
+     own x=0 (to -300) so it still reaches the page's left edge at the
+     peak of the opening spring's overshoot: cubic-bezier(0.34, 1.56,
+     0.64, 1) peaks around 9.8% past its target, and 9.8% of the
+     1243px slide is ~122px — past that, the drawer would briefly show
+     page background on the left mid-bounce without this margin. */
+  .filter-drawer-fill-mobile {
+    position: absolute;
+    left: -300px;
+    top: 0;
+    width: 1515px;
+    height: 3468px;
+    background-color: var(--panel-dark);
+  }
+
+  /* Filter drawer contents — upload date / max. views / preferred contacts. */
+  .filter-section-mobile {
+    position: absolute;
+    left: 0;
+    width: 1240px;
+  }
+  #filterSectionUpload { top: 396px; }
+  #filterSectionViews { top: 1470px; }
+  #filterSectionContacts { top: 2482px; }
+
+  /* height:201 (all three sections' title bars share this) + normal flow
+     lets .filter-options-mobile's margin-top below express point 8's
+     "27px from title's own bottom" directly, instead of hardcoding
+     201+27=228 as a top offset. */
+  .filter-title-back-mobile {
+    position: relative;
+    height: 201px;
+  }
+  .filter-title-text-mobile {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding-left: 80px;
+    font-size: 120px;
+    color: var(--text);
+    white-space: nowrap;
+    transform: translateY(-10px);
+  }
+  /* title back.svg, native coordinates kept as-is (then grown by the
+     mask's own 6px margin on every side — left/top -6, width/height +12,
+     same convention as .filter-drawer-back-mobile above): left:-625 on
+     the strip is intentional, it bleeds off this section's own left edge
+     so the light color always reaches the drawer's own left edge
+     regardless of this 1121-wide asset's nominal width vs. the drawer
+     body's 1240. Paint order (accent then strip then icon-bg, matching
+     the source SVG's own document order) matters — verified against the
+     reference PNG: accent only actually shows through a ~91px sliver
+     (827-918) between where the strip ends and the icon-bg begins. */
+  .filter-title-strip-mobile {
+    position: absolute;
+    left: -631px;
+    top: -6px;
+    width: 1464px;
+    height: 213px;
+    background-color: var(--pill-bright);
+    -webkit-mask-image: url(assets/masks/filter-title-strip.png);
+    mask-image: url(assets/masks/filter-title-strip.png);
+  }
+  .filter-title-accent-mobile {
+    position: absolute;
+    left: 508px;
+    top: -6px;
+    width: 544px;
+    height: 213px;
+    background-color: var(--pill-dim);
+    -webkit-mask-image: url(assets/masks/filter-title-accent.png);
+    mask-image: url(assets/masks/filter-title-accent.png);
+  }
+  .filter-title-icon-bg-mobile {
+    position: absolute;
+    left: 912px;
+    top: -6px;
+    width: 213px;
+    height: 213px;
+    background-color: var(--pill-bright);
+    -webkit-mask-image: url(assets/masks/filter-title-icon-bg.png);
+    mask-image: url(assets/masks/filter-title-icon-bg.png);
+  }
+  /* pref contacts back.svg — single layer, same right edge (1119) as
+     title-back's own icon-bg above. */
+  .filter-contacts-strip-mobile {
+    position: absolute;
+    left: -631px;
+    top: -6px;
+    width: 1756px;
+    height: 213px;
+    background-color: var(--pill-bright);
+    -webkit-mask-image: url(assets/masks/filter-contacts-strip.png);
+    mask-image: url(assets/masks/filter-contacts-strip.png);
+  }
+
+  /* sort-direction icon: three bars, tall-to-short left-to-right by
+     default (matches "sorting max to min.svg" as exported). "sorting min
+     to max.svg" turned out pixel-identical to it — the direction change
+     is meant to come from mirroring this one asset horizontally, not from
+     two separate shapes, so there's only one icon here, flipped via
+     .dir-asc for the opposite direction (same idea as desktop's
+     .pill-arrow.dir-desc, just a different transform). */
+  .filter-sort-icon-mobile {
+    position: absolute;
+    left: 918px;
+    top: 0;
+    width: 201px;
+    height: 201px;
+    cursor: pointer;
+  }
+  /* native 94x96 icon centered in the 201x201 icon-bg square — (201-94)/2,
+     (201-96)/2 = (53.5, 52.5) — then grown by the mask's own 6px margin
+     (left/top -6, width/height +12), same convention as the title layers
+     above. Flip transform-origin stays this element's own center either
+     way, since that margin is symmetric on all sides. */
+  .filter-sort-icon-bars-mobile {
+    position: absolute;
+    left: 47.5px;
+    top: 46.5px;
+    width: 106px;
+    height: 108px;
+    background-color: var(--text);
+    -webkit-mask-image: url(assets/masks/filter-sort-icon.png);
+    mask-image: url(assets/masks/filter-sort-icon.png);
+    transition: transform 0.35s ease;
+  }
+  .filter-sort-icon-mobile.dir-asc .filter-sort-icon-bars-mobile { transform: scaleX(-1); }
+
+  .filter-options-mobile {
+    position: relative;
+    margin-top: 27px;
+    padding-left: 80px;
+    display: flex;
+    flex-direction: column;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  /* max. views' own options list sits 40px lower than upload date's and
+     preferred contacts', per explicit user request — not part of the
+     shared 27px-from-title-bottom rule above. */
+  #mvOptionsMobile {
+    margin-top: 67px;
+  }
+  .filter-option-mobile {
+    font-size: 120px;
+    line-height: 109%;
+    color: var(--filter-option-muted);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.1s ease;
+  }
+  .filter-option-mobile.selected { color: var(--text); }
+  .filter-option-mobile:not(.selected):hover { color: var(--option-hover); }
+
+  @media (max-width: 768px) {
+    #canvas { display: none; }
+    #canvasMobile { display: block; }
+    #filterDrawerMobile { display: block; }
+  }
 </style>
 </head>
 <body>
@@ -1576,7 +2159,66 @@
   </div>
 </div>
 
+<div id="canvasMobile">
+  <script>
+    (function() {
+      var c = document.getElementById("canvasMobile");
+      if (c) c.style.zoom = window.innerWidth / 1601;
+    })();
+  </script>
+  <h1 class="mobile-title"><a href="https://eskimus.com" target="_blank" rel="noopener">eskimo's</a><br>indie tracker</h1>
+  <p class="mobile-last-updated" id="lastUpdatedMobile"></p>
+  <div class="rows-mobile" id="rowsMobile"></div>
+</div>
 
+<div id="filterDrawerMobile">
+  <script>
+    (function() {
+      var d = document.getElementById("filterDrawerMobile");
+      if (d) d.style.zoom = window.innerWidth / 1601;
+    })();
+  </script>
+  <div class="filter-drawer-back-mobile"></div>
+  <div class="filter-tab-mobile" id="filterTabMobile">
+    <div class="filter-tab-back-mobile"></div>
+    <div class="filter-tab-flag-mobile"></div>
+  </div>
+  <div class="filter-drawer-fill-mobile"></div>
+
+  <div class="filter-section-mobile" id="filterSectionUpload">
+    <div class="filter-title-back-mobile">
+      <div class="filter-title-accent-mobile"></div>
+      <div class="filter-title-strip-mobile"></div>
+      <div class="filter-title-icon-bg-mobile"></div>
+      <div class="filter-title-text-mobile">upload date</div>
+      <div class="filter-sort-icon-mobile" id="filterSortUpload">
+        <div class="filter-sort-icon-bars-mobile"></div>
+      </div>
+    </div>
+    <div class="filter-options-mobile" id="udOptionsMobile"></div>
+  </div>
+
+  <div class="filter-section-mobile" id="filterSectionViews">
+    <div class="filter-title-back-mobile">
+      <div class="filter-title-accent-mobile"></div>
+      <div class="filter-title-strip-mobile"></div>
+      <div class="filter-title-icon-bg-mobile"></div>
+      <div class="filter-title-text-mobile">max. views</div>
+      <div class="filter-sort-icon-mobile" id="filterSortViews">
+        <div class="filter-sort-icon-bars-mobile"></div>
+      </div>
+    </div>
+    <div class="filter-options-mobile" id="mvOptionsMobile"></div>
+  </div>
+
+  <div class="filter-section-mobile" id="filterSectionContacts">
+    <div class="filter-title-back-mobile">
+      <div class="filter-contacts-strip-mobile"></div>
+      <div class="filter-title-text-mobile">preferred contacts</div>
+    </div>
+    <div class="filter-options-mobile" id="contactsOptionsMobile"></div>
+  </div>
+</div>
 
 <script>
 const API = "";
@@ -1818,12 +2460,16 @@ async function loadGames() {
 
 async function loadLastUpdated() {
   const el = document.getElementById("lastUpdated");
+  const elMobile = document.getElementById("lastUpdatedMobile");
   try {
     const res = await fetch(`${API}/api/last-updated`);
     const data = await res.json();
-    el.textContent = data.last_updated ? `last updated ${formatRelativeTime(data.last_updated)}` : "";
+    const text = data.last_updated ? `last updated ${formatRelativeTime(data.last_updated)}` : "";
+    el.textContent = text;
+    if (elMobile) elMobile.textContent = text;
   } catch {
     el.textContent = "";
+    if (elMobile) elMobile.textContent = "";
   }
 }
 
@@ -1947,10 +2593,31 @@ function renderPeriodDropdown() {
       periodValue = node.dataset.value;
       closeAllDropdowns();
       renderPeriodDropdown();
+      renderMobilePeriodOptions();
       loadGames();
     });
   });
   alignOptionsToLabel(document.querySelector("#udTitle span"), document.getElementById("udPanel"), el);
+}
+
+/* mobile's options list is always visible (the drawer itself is already
+   the "opened panel"), so unlike renderPeriodDropdown above there's no
+   dd-wrap/openDropdown/alignOptionsToLabel dance — just render + a click
+   that updates the same periodValue desktop uses, so both stay in sync
+   regardless of which one the user actually touches. */
+function renderMobilePeriodOptions() {
+  const el = document.getElementById("udOptionsMobile");
+  el.innerHTML = PERIOD_OPTIONS.map(opt => `
+    <div class="filter-option-mobile ${opt.value === periodValue ? "selected" : ""}" data-value="${opt.value}">${opt.label}</div>
+  `).join("");
+  el.querySelectorAll(".filter-option-mobile").forEach(node => {
+    node.addEventListener("click", () => {
+      periodValue = node.dataset.value;
+      renderPeriodDropdown();
+      renderMobilePeriodOptions();
+      loadGames();
+    });
+  });
 }
 
 function renderMetricDropdown() {
@@ -1963,10 +2630,26 @@ function renderMetricDropdown() {
       metricValue = node.dataset.value;
       closeAllDropdowns();
       renderMetricDropdown();
+      renderMobileMetricOptions();
       loadGames();
     });
   });
   alignOptionsToLabel(document.querySelector("#mvTitle span"), document.getElementById("mvPanel"), el);
+}
+
+function renderMobileMetricOptions() {
+  const el = document.getElementById("mvOptionsMobile");
+  el.innerHTML = METRIC_OPTIONS.map(opt => `
+    <div class="filter-option-mobile ${opt.value === metricValue ? "selected" : ""}" data-value="${opt.value}">${opt.label}</div>
+  `).join("");
+  el.querySelectorAll(".filter-option-mobile").forEach(node => {
+    node.addEventListener("click", () => {
+      metricValue = node.dataset.value;
+      renderMetricDropdown();
+      renderMobileMetricOptions();
+      loadGames();
+    });
+  });
 }
 
 function renderContactsDropdown() {
@@ -2004,9 +2687,39 @@ function renderContactsDropdown() {
         }
       }
       updateApplyButton();
+      renderMobileContactsOptions();
     });
   });
   alignOptionsToLabel(document.querySelector("#contactsTitle span"), document.getElementById("contactsPanel"), el);
+}
+
+/* No staged pending/apply step on mobile (no apply-button asset in this
+   spec, unlike desktop's #applyContactsBtn) — a tap commits straight to
+   appliedPriority. pendingPriority is kept equal to it here too, so
+   desktop's own apply button (comparing the two) doesn't show up stale
+   if the user switches viewport size mid-session without a reload. */
+function renderMobileContactsOptions() {
+  const el = document.getElementById("contactsOptionsMobile");
+  el.innerHTML = CONTACT_TYPES.map(opt => {
+    const selected = appliedPriority.includes(opt.value);
+    return `<div class="filter-option-mobile ${selected ? "selected" : ""}" data-value="${opt.value}">${opt.label}</div>`;
+  }).join("");
+  el.querySelectorAll(".filter-option-mobile").forEach(node => {
+    node.addEventListener("click", () => {
+      const v = node.dataset.value;
+      if (appliedPriority.includes(v)) {
+        appliedPriority = appliedPriority.filter(t => t !== v);
+        pendingPriority = pendingPriority.filter(t => t !== v);
+      } else {
+        appliedPriority.push(v);
+        pendingPriority.push(v);
+      }
+      renderContactsDropdown();
+      renderMobileContactsOptions();
+      updateApplyButton();
+      render(true);
+    });
+  });
 }
 
 /* Darumadrop loads async, and alignOptionsToLabel measures the *rendered*
@@ -2025,6 +2738,9 @@ function renderContactsDropdown() {
 renderPeriodDropdown();
 renderMetricDropdown();
 renderContactsDropdown();
+renderMobilePeriodOptions();
+renderMobileMetricOptions();
+renderMobileContactsOptions();
 
 document.getElementById("udTitle").addEventListener("click", (e) => {
   e.stopPropagation();
@@ -2050,22 +2766,31 @@ function updateSortArrows() {
   const viewsArrow = document.getElementById("mvArrow");
   dateArrow.classList.toggle("dir-desc", sortField === "date" && sortDirection === "desc");
   viewsArrow.classList.toggle("dir-desc", sortField === "views" && sortDirection === "desc");
+  /* mobile's bar icon defaults to its "max to min" look (tall-to-short,
+     see .filter-sort-icon-mobile in <style>) and only flips for ascending
+     — opposite condition from the desktop arrow's dir-desc, since the two
+     icons' neutral/default orientations mean opposite things. */
+  document.getElementById("filterSortUpload").classList.toggle("dir-asc", sortField === "date" && sortDirection === "asc");
+  document.getElementById("filterSortViews").classList.toggle("dir-asc", sortField === "views" && sortDirection === "asc");
 }
 
-document.getElementById("udArrow").addEventListener("click", (e) => {
-  e.stopPropagation();
+function toggleDateSort() {
   if (sortField === "date") sortDirection = sortDirection === "asc" ? "desc" : "asc";
   else { sortField = "date"; sortDirection = "desc"; }
   updateSortArrows();
   render(true);
-});
-document.getElementById("mvArrow").addEventListener("click", (e) => {
-  e.stopPropagation();
+}
+function toggleViewsSort() {
   if (sortField === "views") sortDirection = sortDirection === "asc" ? "desc" : "asc";
   else { sortField = "views"; sortDirection = "desc"; }
   updateSortArrows();
   render(true);
-});
+}
+
+document.getElementById("udArrow").addEventListener("click", (e) => { e.stopPropagation(); toggleDateSort(); });
+document.getElementById("mvArrow").addEventListener("click", (e) => { e.stopPropagation(); toggleViewsSort(); });
+document.getElementById("filterSortUpload").addEventListener("click", (e) => { e.stopPropagation(); toggleDateSort(); });
+document.getElementById("filterSortViews").addEventListener("click", (e) => { e.stopPropagation(); toggleViewsSort(); });
 updateSortArrows();
 
 /* ---------------- favorites ---------------- */
@@ -2088,7 +2813,10 @@ function toggleFavorite(gameId) {
   if (showingFavoritesOnly && isRemoving) {
     render(true);
   } else {
-    document.querySelectorAll(`.badge-fav[data-fav-toggle="${gameId}"]`).forEach(el => {
+    // .badge-fav-mobile alongside .badge-fav — both templates render the
+    // same data-fav-toggle id at once (see renderRowsMobile), so this
+    // needs to update whichever of the two is actually showing.
+    document.querySelectorAll(`.badge-fav[data-fav-toggle="${gameId}"], .badge-fav-mobile[data-fav-toggle="${gameId}"]`).forEach(el => {
       el.classList.toggle("active", !isRemoving);
     });
   }
@@ -2116,6 +2844,30 @@ headerFav.addEventListener("click", () => {
   // change
   render(true);
 });
+
+// Mobile filter drawer. Clicking the tab toggles it open/closed; clicking
+// it again while open closes it back.
+const filterTabMobile = document.getElementById("filterTabMobile");
+if (filterTabMobile) {
+  filterTabMobile.addEventListener("click", () => {
+    document.getElementById("filterDrawerMobile").classList.toggle("open");
+  });
+}
+
+// Tapping the page outside the drawer, while it's open, closes it — same
+// idea as desktop's "click outside #toolbarArea closes the dropdowns"
+// below, but capture-phase + stopPropagation so the tap doesn't *also*
+// reach whatever row/button was underneath it (a heart, a video link…).
+// The tab itself sits inside #filterDrawerMobile, so this never
+// double-fires against its own toggle handler above.
+document.addEventListener("click", (e) => {
+  const drawer = document.getElementById("filterDrawerMobile");
+  if (drawer.classList.contains("open") && !e.target.closest("#filterDrawerMobile")) {
+    drawer.classList.remove("open");
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
 
 /* ---------------- relative date ---------------- */
 
@@ -2266,6 +3018,101 @@ function renderRowHtml(g, index) {
     </div>`;
 }
 
+// Left edge of each of the 5 equal-size contact pills (230px visible width
+// each), spanning video-back's own 1281px width (160..1441) with equal
+// gaps between all 5: (1281 - 5*230) / 4 = 32.75px gap, so each pill sits
+// exactly one width+gap (262.75px) after the previous one. Pill 3 (index
+// 2) lands exactly on the page's own horizontal center (800.5) as a
+// result, same as video-back's own center — not a coincidence, just what
+// falls out of centering 5 equal pills across a centered 1281px span.
+const MOBILE_CONTACT_PILL_LEFT = [0, 1, 2, 3, 4].map(i => 160 + i * (230 + 32.75));
+
+function renderContactPillMobile(game, row, leftPx) {
+  const url = game.contacts[row.key];
+  const found = Boolean(url);
+  const isPriority = found && appliedPriority.includes(row.key === "instagram" ? "instagram" : row.key);
+  const badge = !found
+    ? `<img class="badge badge-cross" src="${PNG_ASSETS}/${CROSS_FILES[row.key.length % 2]}.png" alt="">`
+    : (isPriority ? `<img class="badge badge-star" src="${PNG_ASSETS}/${STAR_FILES[row.key.length % 2]}.png" alt="">` : "");
+
+  const iconFile = !found
+    ? ICON_FILES[row.icon] + "-inactive"
+    : (showingFavoritesOnly && row.icon === "web" ? "web-favorites" : ICON_FILES[row.icon]);
+  const inner = `
+    <div class="contact-icon-wrap-mobile">
+      <img class="icon" src="${PNG_ASSETS}/${iconFile}.png?v=3" alt="${row.label}">
+      ${badge}
+    </div>
+  `;
+
+  const pillStyle = `left:${leftPx}px`;
+  const content = found
+    ? `<a href="${url}" target="_blank" rel="noopener">${inner}</a>`
+    : inner;
+  // .contact-pill-back-mobile is a sibling of the icon content, not a
+  // wrapper around it — see the CSS comment on .contact-pill-mobile for why.
+  return `<div class="contact-pill-mobile" style="${pillStyle}"><div class="contact-pill-back-mobile"></div>${content}</div>`;
+}
+
+// New from-scratch mobile card template (see the "MOBILE TEMPLATE" CSS
+// block above) — reuses renderThumbnailImg/toggleFavorite/
+// playVideoInline/fitRowDescription-equivalent wiring by matching
+// desktop's own class names and data-* attributes wherever
+// attachRowListeners() keys off them (.video-thumb, [data-fav-toggle],
+// [data-more-toggle], [data-desc-wrap], data-video-url, data-thumb-video-
+// id), so that function works unchanged for both templates rather than
+// needing its own mobile copy. Description backdrops and the filter/
+// favorites drawer are still pending a later spec pass — the "more"
+// toggle below opens a bare, unstyled text block for now, just to prove
+// the interaction end to end.
+function renderRowHtmlMobile(g, index) {
+  const videoId = extractVideoId(g.best_source.url);
+  const isFav = favorites.has(g.id);
+
+  const pills = CONTACT_ROWS.map((row, i) => renderContactPillMobile(g, row, MOBILE_CONTACT_PILL_LEFT[i])).join("");
+
+  return `
+    <div class="row-mobile" data-game-id="${g.id}">
+      <div class="row-title-mobile"><a href="${g.best_source.url}" target="_blank" rel="noopener">${g.best_source.title}</a></div>
+      <div class="row-meta-mobile">${formatViews(g.best_source.metric_value)} views &middot; ${formatRelativeTime(g.best_source.published_at)}</div>
+
+      <div class="line-mobile row-topline-mobile"></div>
+
+      <div class="video-wrap-mobile">
+        <div class="video-bg-mobile"></div>
+        <div class="video-thumb video-thumb-mobile" data-video-url="${g.best_source.url}">
+          ${renderThumbnailImg(g, videoId)}
+          ${videoId ? `<div class="play-btn"><div class="play-btn-circle"></div><div class="play-btn-triangle"></div></div>` : ""}
+        </div>
+      </div>
+
+      <div class="contacts-row-mobile">${pills}</div>
+
+      <div class="line-mobile row-bottomline-mobile"></div>
+
+      <div class="badge-rank-mobile">
+        <div class="badge-rank-inner-mobile">
+          <div class="badge-rank-num-mobile">#${index + 1}</div>
+        </div>
+      </div>
+
+      <div class="badge-fav-mobile ${isFav ? "active" : ""}" data-fav-toggle="${g.id}">
+        <div class="badge-fav-inner-mobile">
+          <div class="fav-heart-mask-mobile"></div>
+        </div>
+      </div>
+
+      <div class="more-btn-mobile" data-more-toggle="${g.id}">
+        <div class="more-btn-back-mobile"></div>
+        <div class="more-btn-symbol-mobile"></div>
+      </div>
+
+      <div class="row-description-wrap-mobile" data-desc-wrap="${g.id}">
+        <div class="description-text-mobile">${escapeHtml(g.best_source.description || "No description available.")}</div>
+      </div>
+    </div>`;
+}
+
 function escapeHtml(str) {
   return String(str || "")
     .replace(/&/g, "&amp;")
@@ -2297,8 +3144,13 @@ function attachRowListeners(root) {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       const gameId = el.dataset.moreToggle;
-      const row = el.closest(".row");
-      const wrap = row ? row.querySelector(".row-description-wrap") : document.querySelector(`[data-desc-wrap="${gameId}"]`);
+      // .row-mobile alongside .row — both templates render the same
+      // data-more-toggle id at once (see renderRowsMobile), so a plain
+      // document-wide `[data-desc-wrap=id]` fallback would risk matching
+      // the *other* template's wrap instead of this row's own; scoping to
+      // whichever row this specific button lives in avoids that.
+      const row = el.closest(".row, .row-mobile");
+      const wrap = row ? row.querySelector(".row-description-wrap, .row-description-wrap-mobile") : document.querySelector(`[data-desc-wrap="${gameId}"]`);
       if (!wrap) return;
       const isOpen = el.classList.toggle("open");
       wrap.classList.toggle("open", isOpen);
@@ -2556,6 +3408,42 @@ function renderMoreRows(count = ROW_BATCH_SIZE) {
   rescale();
 }
 
+// Mobile's own row list — kept deliberately simple compared to
+// renderMoreRows above: no ROW_BATCH_SIZE/sentinel-driven incremental
+// loading yet (nothing here to worry about resource-ceiling-wise until
+// this template also needs to carry hundreds of rows' worth of masks),
+// just the whole currentList at once, rebuilt on every render() call
+// (kept alongside the desktop tree rather than swapped in/out of it, so
+// resizing across the breakpoint never finds a stale, un-rendered half).
+function fitRowDescriptionMobile(row) {
+  const wrap = row.querySelector(".row-description-wrap-mobile");
+  const text = row.querySelector(".description-text-mobile");
+  if (!wrap || !text) return;
+  // No per-line-count backdrop yet (pending the description-panel spec
+  // pass) — this just opens to the text's own natural height.
+  wrap.dataset.openHeight = text.scrollHeight;
+}
+
+function renderRowsMobile() {
+  const rowsMobileEl = document.getElementById("rowsMobile");
+  if (!rowsMobileEl) return;
+
+  if (!currentList.length) {
+    const msg = showingFavoritesOnly ? "you don't love anything. heartless." : "Nothing matches the current filter.";
+    rowsMobileEl.innerHTML = `<div class="empty-state">${msg}</div>`;
+    return;
+  }
+
+  const template = document.createElement("template");
+  template.innerHTML = currentList.map((g, i) => renderRowHtmlMobile(g, i)).join("");
+  const rows = [...template.content.querySelectorAll(".row-mobile")];
+  attachRowListeners(template.content);
+  rowsMobileEl.innerHTML = "";
+  rowsMobileEl.appendChild(template.content);
+
+  rows.forEach(row => fitRowDescriptionMobile(row));
+}
+
 // Checked directly via getBoundingClientRect on scroll, rather than an
 // IntersectionObserver watching the sentinel — this app scales its whole
 // layout with CSS `zoom` (not transform; see rescale() below), which has
@@ -2721,6 +3609,7 @@ function render(resetView = false) {
       // never come
       maybeLoadMoreRows();
     }
+    renderRowsMobile();
     if (resetView) fadeRowsIn(rowsEl);
   };
 
@@ -2821,7 +3710,26 @@ function rescale() {
   // real height; min-height can't undershoot the same way, since body's
   // box then just grows to fit canvas if canvas is ever taller than this
   // estimate, instead of clipping/mismatching against it.
-  document.body.style.minHeight = canvas.scrollHeight * scale + "px";
+  // #canvasMobile (see the "MOBILE TEMPLATE" CSS block) is a completely
+  // separate reference canvas (1601px, no getPageScale() boost — this is
+  // a real from-scratch mobile design, not desktop reused at a bigger
+  // zoom, so a plain scale-to-fit is all it needs) — display:none above
+  // the ≤768px breakpoint, so its own scrollHeight is 0 there and this is
+  // a no-op; Math.max below just lets whichever canvas is actually
+  // visible drive body's min-height without needing to duplicate the
+  // breakpoint check here too.
+  const canvasMobile = document.getElementById("canvasMobile");
+  const mobileScale = window.innerWidth / 1601;
+  canvasMobile.style.zoom = mobileScale;
+  // #filterDrawerMobile (see <style>) needs the same zoom, kept in sync
+  // on every resize — it's a position:fixed sibling of #canvasMobile, not
+  // a descendant, so it doesn't inherit this automatically.
+  document.getElementById("filterDrawerMobile").style.zoom = mobileScale;
+
+  document.body.style.minHeight = Math.max(
+    canvas.scrollHeight * scale,
+    canvasMobile.scrollHeight * mobileScale
+  ) + "px";
 
   // see the .page-vignette comment in <style> — position:fixed there now,
   // so this is purely about keeping its width proportional to the design,

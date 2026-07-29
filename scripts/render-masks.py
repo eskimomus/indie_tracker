@@ -139,6 +139,16 @@ SHAPES_CANVAS_IS_BOX = [
      '<rect x="9" y="0" width="8" height="26" rx="3" fill="white"/>'
      '<rect x="26" y="9" width="8" height="26" rx="3" transform="rotate(90 26 9)" fill="white"/>',
      0.01, 0, 1),
+
+    # filter drawer's tab icon (Group 74.svg's flag/pennant path) — also
+    # plain, no wobble in the source export. Natural bbox in the source's
+    # own coordinates is x:[1270,1338] y:[473,534.821]; translated by
+    # (-1270,-473) so it sits flush in its own small canvas.
+    ("filter-tab-flag", 68, 62,
+     '<g transform="translate(-1270, -473)">'
+     '<path d="M1327.8 473H1280.2C1275.39 473 1272.99 473 1271.49 474.397C1270 475.794 1270 478.042 1270 482.539V484.876C1270 488.393 1270 490.152 1270.88 491.61C1271.77 493.068 1273.38 493.972 1276.6 495.782L1286.51 501.339C1288.67 502.553 1289.75 503.16 1290.53 503.831C1292.14 505.227 1293.13 506.867 1293.58 508.879C1293.8 509.845 1293.8 510.975 1293.8 513.236V522.283C1293.8 525.365 1293.8 526.906 1294.66 528.108C1295.51 529.309 1297.03 529.902 1300.08 531.088C1306.46 533.576 1309.66 534.821 1311.93 533.405C1314.2 531.989 1314.2 528.754 1314.2 522.283V513.236C1314.2 510.975 1314.2 509.845 1314.42 508.879C1314.87 506.867 1315.86 505.227 1317.47 503.831C1318.25 503.16 1319.33 502.553 1321.49 501.339L1331.4 495.782C1334.62 493.972 1336.23 493.068 1337.12 491.61C1338 490.152 1338 488.393 1338 484.876V482.539C1338 478.042 1338 475.794 1336.51 474.397C1335.01 473 1332.61 473 1327.8 473Z" fill="white"/>'
+     '</g>',
+     0.01, 0, 1),
 ]
 
 SHAPES_RECT_IS_SPEC_SIZE = [
@@ -208,6 +218,47 @@ SHAPES_RECT_IS_SPEC_SIZE = [
     # path instead of this list's uniform `rx` template.
     ("header-fav-bg", 67, 65, 16, 0.019685039296746254, 2.7999999523162842, 4946, 10),
 
+    # Mobile template (1601px-wide reference canvas, separate from the
+    # 1920px desktop one — see index.html's mobile row markup). Each of
+    # these three came from its own standalone Figma export with its own
+    # <filter>, so — unlike ud-/mv- above — they're independent entries
+    # here rather than a SHAPES_SHARED_CANVAS_GROUPS group: nothing here
+    # sits flush/touching another piece of this trio (top-line to
+    # video-back alone is a 20px gap), so there's no shared edge whose
+    # wobble needs to correlate.
+    # m-video-back: freq/scale/seed match desktop's own "video" entry
+    # above exactly (same visual family) — margin=6 for the same reason
+    # (big enough to plausibly hit the Chrome edge-bleed bug).
+    ("m-video-back", 1281, 738, 16, 0.01666666753590107, 4, 8124, 6),
+    # m-line: shared by both the top and bottom line under each mobile
+    # video (same "one shape, several CSS classes" reuse as desktop's own
+    # .divider). Long/thin but still wide enough on its own to plausibly
+    # hit the same bug, hence margin=6 rather than the smaller pills' 10.
+    ("m-line", 1281, 28, 14, 0.01666666753590107, 4, 8124, 6),
+    # m-contacts-back: one shape, tiled 5x per row (see index.html) — freq/
+    # scale/seed match desktop's contacts-bg/description-N family exactly.
+    ("m-contacts-back", 230, 194, 16, 0.0099999997764825821, 6, 7089, 10),
+
+    # Filter drawer (Group 74.svg) — full-page-height sliding panel, mostly
+    # off-screen to the left except for a small tab that always peeks out
+    # (see index.html's #filterDrawerMobile). Both pieces share the exact
+    # same freq/scale/seed in the source export.
+    ("filter-drawer-back", 1240, 3468, 16, 0.0099999997764825821, 6, 7089, 6),
+    ("filter-tab-back", 470, 248, 16, 0.0099999997764825821, 6, 7089, 6),
+
+    # Filter drawer contents — title back.svg's 3 layers (upload date /
+    # max. views backdrops) and pref contacts back.svg's single layer.
+    # Each rect has its own independently-fitted <filter> region in the
+    # source (x=512/-627/916, each just ~2px past its own rect) rather than
+    # one shared canvas, so — unlike ud-/mv- above — there's no shared-edge
+    # wobble to correlate here: rendering each independently, same as
+    # m-video-back/m-line, faithfully matches how the source itself was
+    # built. freq/scale/seed match that family exactly.
+    ("filter-title-strip", 1452, 201, 16, 0.01666666753590107, 4, 8124, 6),
+    ("filter-title-accent", 532, 201, 16, 0.01666666753590107, 4, 8124, 6),
+    ("filter-title-icon-bg", 201, 201, 16, 0.01666666753590107, 4, 8124, 6),
+    ("filter-contacts-strip", 1744, 201, 16, 0.01666666753590107, 4, 8124, 6),
+
     # The entire header — its dark background, every button ("upload
     # date" / "max. views" / "preferred contacts" / the heart favorites
     # toggle), and the dropdown panels underneath them — *used* to live
@@ -255,6 +306,20 @@ SHAPES_CANVAS_IS_BOX_WITH_MARGIN = [
      '<path d="M2 35C2 16.7746 16.7746 2 35 2H400C408.837 2 416 9.16344 416 18V235C416 243.837 408.837 251 400 251H18C9.16345 251 2 243.837 2 235V35Z" fill="white"/>'
      '</g>',
      0.013888888992369175, 4.0, 9984, 10),
+
+    # Filter drawer's sort-direction icon (three bars, tall-to-short —
+    # "sorting max to min.svg"; "sorting min to max.svg" turned out
+    # pixel-identical, so index.html flips this one asset via CSS instead
+    # of using a second shape here). Natural bbox is ~89.55x91.59 starting
+    # at (1.9, 1.9); translated by (6-1.9, 6-1.9) for a clean 6px margin on
+    # every side, same convention as the rect-margin family above.
+    ("filter-sort-icon", 106, 108,
+     '<g transform="translate(4.0996, 4.1001)">'
+     '<rect x="1.90039" y="1.8999" width="21.0314" height="91.5885" rx="10.5157" fill="white"/>'
+     '<rect x="36.5" y="37.1787" width="21.0314" height="56.31" rx="10.5157" fill="white"/>'
+     '<rect x="70.4219" y="62.9595" width="21.0314" height="30.5295" rx="10.5157" fill="white"/>'
+     '</g>',
+     0.02500000037252903, 3.7999999523162842, 5172, 6),
 ]
 
 SHAPES = (
