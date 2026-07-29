@@ -1531,7 +1531,7 @@
   }
   .mobile-title {
     position: absolute;
-    top: 328px;
+    top: 58px; /* 328 - 270, per user request to raise all main-page content */
     left: 0;
     width: 100%;
     margin: 0;
@@ -1545,7 +1545,7 @@
   .mobile-title a:hover { color: var(--eskimo-hover, #B5C5A8); }
   .mobile-last-updated {
     position: absolute;
-    top: 588px;
+    top: 318px; /* 588 - 270 */
     left: 0;
     width: 100%;
     margin: 0;
@@ -1556,8 +1556,14 @@
 
   .rows-mobile {
     position: relative;
-    /* first row's own title sits 722px below the page's top edge */
-    padding-top: 722px;
+    /* first row's own title sits 452px below the page's top edge (was
+       722, raised 270px per user request — padding-top so the page's own
+       scrollable height actually shrinks by 270 too, instead of a
+       transform that would just paint everything 270px higher without
+       removing the now-empty space, clipping the title/date at the top
+       in the process since this element (unlike the fixed-position
+       filter drawer) scrolls with the rest of the page). */
+    padding-top: 452px;
     padding-bottom: 80px;
   }
   .row-mobile {
@@ -1852,6 +1858,13 @@
     left: -1243px;
     width: 1376px;
     z-index: 50;
+    /* raises the whole drawer (backdrop + tab + all filter content) 270px
+       per user request — a static transform rather than renumbering every
+       child's own top, and translateY isn't re-scaled by this element's
+       own zoom the way a declared top/height would be (confirmed
+       empirically on .filter-title-text-mobile's own translateY nudge),
+       so 270 here is already true design-space pixels. */
+    transform: translateY(-270px);
     /* closing: plain ease back in, no overshoot — only the *opening*
        motion gets the spring (see .open below); this rule governs the
        transition because it's the destination style when .open is
@@ -1879,6 +1892,13 @@
     background-color: var(--panel-dark);
     -webkit-mask-image: url(assets/masks/filter-drawer-back.png);
     mask-image: url(assets/masks/filter-drawer-back.png);
+    /* cancels #filterDrawerMobile's own translateY(-270px) for just this
+       layer, so the backdrop still reaches the parent's full (viewport)
+       height instead of leaving a 270px gap at the bottom — the tab and
+       all filter content above still ride the parent's -270 shift as
+       normal, only this backdrop (and .filter-drawer-fill-mobile below)
+       opts back out of it. */
+    transform: translateY(270px);
   }
   .filter-tab-mobile {
     position: absolute;
@@ -1928,6 +1948,11 @@
     width: 1515px;
     height: 3468px;
     background-color: var(--panel-dark);
+    /* same counter-shift as .filter-drawer-back-mobile above, and for the
+       same reason — this is the other of the "two backdrop layers" that
+       needs to stay at full height rather than following the parent's
+       -270px raise. */
+    transform: translateY(270px);
   }
 
   /* Filter drawer contents — upload date / max. views / preferred contacts. */
