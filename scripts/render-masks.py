@@ -149,6 +149,15 @@ SHAPES_CANVAS_IS_BOX = [
      '<path d="M1327.8 473H1280.2C1275.39 473 1272.99 473 1271.49 474.397C1270 475.794 1270 478.042 1270 482.539V484.876C1270 488.393 1270 490.152 1270.88 491.61C1271.77 493.068 1273.38 493.972 1276.6 495.782L1286.51 501.339C1288.67 502.553 1289.75 503.16 1290.53 503.831C1292.14 505.227 1293.13 506.867 1293.58 508.879C1293.8 509.845 1293.8 510.975 1293.8 513.236V522.283C1293.8 525.365 1293.8 526.906 1294.66 528.108C1295.51 529.309 1297.03 529.902 1300.08 531.088C1306.46 533.576 1309.66 534.821 1311.93 533.405C1314.2 531.989 1314.2 528.754 1314.2 522.283V513.236C1314.2 510.975 1314.2 509.845 1314.42 508.879C1314.87 506.867 1315.86 505.227 1317.47 503.831C1318.25 503.16 1319.33 502.553 1321.49 501.339L1331.4 495.782C1334.62 493.972 1336.23 493.068 1337.12 491.61C1338 490.152 1338 488.393 1338 484.876V482.539C1338 478.042 1338 475.794 1336.51 474.397C1335.01 473 1332.61 473 1327.8 473Z" fill="white"/>'
      '</g>',
      0.01, 0, 1),
+
+    # mobile favorites tab's heart (Group 75.svg) — also plain, no wobble
+    # in the source export. Natural bbox is x:[42,114] y:[84.1423,155];
+    # translated by (-42,-84.1423) so it sits flush in its own canvas.
+    ("favorites-heart-tab", 72, 70.8577,
+     '<g transform="translate(-42, -84.1423)">'
+     '<path d="M42 114.077C42 131.59 56.4699 140.923 67.0622 149.277C70.8 152.225 74.4 155 78 155C81.6 155 85.2 152.225 88.9379 149.277C99.5302 140.923 114 131.59 114 114.077C114 96.5628 94.1993 84.1423 78 100.98C61.8006 84.1423 42 96.5628 42 114.077Z" fill="white"/>'
+     '</g>',
+     0.01, 0, 1),
 ]
 
 SHAPES_RECT_IS_SPEC_SIZE = [
@@ -245,6 +254,13 @@ SHAPES_RECT_IS_SPEC_SIZE = [
     # same freq/scale/seed in the source export.
     ("filter-drawer-back", 1240, 3468, 16, 0.0099999997764825821, 6, 7089, 6),
     ("filter-tab-back", 470, 248, 16, 0.0099999997764825821, 6, 7089, 6),
+
+    # Mobile favorites tab (Group 75.svg) — a standalone peeking tab on the
+    # opposite (right) edge, same freq/scale/seed family as the filter
+    # drawer/tab above. Source rect is 683x242 with its own 3px margin
+    # baked in (689x248 canvas); using this file's usual margin=6 instead,
+    # same as filter-tab-back/m-contacts-back.
+    ("favorites-tab-back", 683, 242, 16, 0.0099999997764825821, 6, 7089, 6),
 
     # Filter drawer contents — title back.svg's 3 layers (upload date /
     # max. views backdrops) and pref contacts back.svg's single layer.

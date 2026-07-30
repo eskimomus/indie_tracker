@@ -108,6 +108,7 @@
     --option-muted: #AF8888;
     --option-hover: #DDB9B9;
     --text-hover: #E0CBCB;
+    --filter-option-muted: #8A7474;
 
     --last-updated-color: #916B6C;
 
@@ -151,7 +152,8 @@
   .more-btn-back-mobile, .more-btn-symbol-mobile,
   .filter-drawer-back-mobile, .filter-tab-back-mobile, .filter-tab-flag-mobile,
   .filter-title-strip-mobile, .filter-title-accent-mobile, .filter-title-icon-bg-mobile,
-  .filter-contacts-strip-mobile, .filter-sort-icon-bars-mobile {
+  .filter-contacts-strip-mobile, .filter-sort-icon-bars-mobile,
+  .header-fav-back-mobile, .header-fav-heart-mobile {
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
@@ -1605,6 +1607,10 @@
     color: #B5C6A6;
     white-space: nowrap;
   }
+  /* --text-hover's favorites-theme value (#E0CBCB) is this spec's number */
+  html.favorites-theme .row-meta-mobile {
+    color: var(--text-hover);
+  }
 
   .line-mobile {
     position: absolute;
@@ -1825,6 +1831,15 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+  /* mobile's own favorites-empty variant — desktop's .empty-state-favorites
+     doesn't apply here (its centering math is tied to #canvas's own
+     viewport-height computation in rescale()); this just overrides the
+     shared .empty-state's smaller desktop-scaled font/color, same as
+     every other mobile text element sitting at its own larger size. */
+  .empty-state-favorites-mobile {
+    color: var(--text);
+    font-size: 75px;
+  }
 
   /* Filter drawer (Group 74.svg) — backdrop + slide-in/out mechanic only;
      the actual filter controls inside it come in a later pass. Sibling of
@@ -1865,11 +1880,10 @@
        empirically on .filter-title-text-mobile's own translateY nudge),
        so 270 here is already true design-space pixels. */
     transform: translateY(-270px);
-    /* closing: plain ease back in, no overshoot — only the *opening*
-       motion gets the spring (see .open below); this rule governs the
-       transition because it's the destination style when .open is
-       removed. */
-    transition: left 0.4s cubic-bezier(0.45, 0, 0.55, 1);
+    /* closing now gets the same gentle spring as opening (see .open
+       below) — this rule governs the transition because it's the
+       destination style when .open is removed. */
+    transition: left 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
   }
   #filterDrawerMobile.open {
     /* 0 = flush with the page's own left edge — verified against the
@@ -1877,11 +1891,12 @@
        tab's own right edge when open): 1601 (page width) - 1373 (tab's
        right edge, local) = 228. */
     left: 0;
-    /* opening: standard "ease-out-back" curve — overshoots ~10% past 0
-       then settles, read as a small spring/bounce. Per user request;
-       this is the destination style when .open is added, so it's the
-       one that governs the opening transition. */
-    transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* "ease-out-back" curve, toned down from the original
+       cubic-bezier(0.34, 1.56, 0.64, 1) (~9.8% overshoot) to y1=1.4
+       (~5.3% overshoot) per user request — still reads as a small
+       spring/bounce, just less of one. Same curve now drives closing
+       too (see the base rule above), not just opening. */
+    transition: left 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
   }
   .filter-drawer-back-mobile {
     position: absolute;
@@ -1907,6 +1922,28 @@
     width: 470px;
     height: 248px;
     cursor: pointer;
+    /* draggable now (see the pointerdown/move/up handlers below) — without
+       this the browser tries to interpret a horizontal drag starting here
+       as a scroll/pan gesture instead of handing it to those handlers. */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    /* the tab's own box (903-1373) overlaps upload date's title bar
+       (0-1240) once the drawer is open — without a z-index, DOM order
+       alone would let that section's own box (declared after the tab)
+       win hit-testing there and swallow pointerdown before it ever
+       reaches the tab, breaking drag-to-close from that overlap region.
+       But raising z-index for the *entire* tab box would also make its
+       own opaque backdrop paint over (and swallow clicks on) upload
+       date's icon-bg/sort-icon square, which sits at 918-1125 — squarely
+       inside 903-1373. clip-path keeps the tab's hit-testable area to
+       just 1130-1373 (past that square, where the tab has no competing
+       content underneath it anyway — the title strip ends at 827 and
+       nothing else in that title bar reaches past 1125), which still
+       comfortably covers the 130px sliver that stays visible when
+       closed (local 1243-1373). */
+    z-index: 10;
+    clip-path: inset(0 0 0 227px); /* 1130 - 903 */
   }
   .filter-tab-back-mobile {
     position: absolute;
@@ -1927,6 +1964,69 @@
     -webkit-mask-image: url(assets/masks/filter-tab-flag.png);
     mask-image: url(assets/masks/filter-tab-flag.png);
   }
+  html.favorites-theme .filter-tab-flag-mobile {
+    background-color: #916B6C;
+  }
+
+  /* Mobile favorites button (Group 75.svg) — a standalone tab peeking out
+     of the *right* edge, mirroring the filter tab's own left-edge peek but
+     without a sliding panel behind it: this one's a plain toggle, not a
+     drawer. right:-556px (689 - 133) leaves exactly the requested 133px
+     visible, same "declared length on a zoomed element" as the filter
+     drawer's own left values — these are already this component's own
+     1601-wide design-space numbers, so no correction needed. top:106
+     matches the filter tab's own (post-270-raise) position for a
+     balanced look, no number given for it either way. */
+  #headerFavMobile {
+    display: none;
+    position: fixed;
+    top: 106px;
+    right: -556px;
+    width: 689px;
+    height: 248px;
+    z-index: 50;
+    cursor: pointer;
+    /* "springs slightly left" on press — same spring curve as the filter
+       drawer's own open/close, toggled by .pressed below rather than tied
+       to any persistent state (this button doesn't stay "pressed in",
+       it's just tap feedback before toggleFavoritesView() re-renders). */
+    transition: transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  #headerFavMobile.pressed {
+    transform: translateX(-40px);
+  }
+  .header-fav-back-mobile {
+    position: absolute;
+    inset: -6px;
+    background-color: var(--panel-dark);
+    -webkit-mask-image: url(assets/masks/favorites-tab-back.png);
+    mask-image: url(assets/masks/favorites-tab-back.png);
+  }
+  .header-fav-heart-mobile {
+    position: absolute;
+    /* heart's own bbox in Group 75.svg is local (42, 84.1423) */
+    left: 42px;
+    top: 84.1423px;
+    width: 72px;
+    height: 70.8577px;
+    background-color: #A8BB97;
+    -webkit-mask-image: url(assets/masks/favorites-heart-tab.png);
+    mask-image: url(assets/masks/favorites-heart-tab.png);
+  }
+  /* active (showingFavoritesOnly) colors, per user spec. Backdrop reuses
+     --header-fav-bg — same variable desktop's own header-fav button
+     background already uses, and its favorites-theme value (#FFF0F0) is
+     exactly this spec's number — since .active and html.favorites-theme
+     are always toggled together (see toggleFavoritesView()), it'll always
+     resolve to that. The icon color has no existing counterpart (desktop's
+     own --header-fav-heart-active is a different #77494B), so it's a
+     plain literal like the inactive heart color right above. */
+  #headerFavMobile.active .header-fav-back-mobile {
+    background-color: var(--header-fav-bg);
+  }
+  #headerFavMobile.active .header-fav-heart-mobile {
+    background-color: #4E3636;
+  }
 
   /* Group 74.svg's 4th layer, missed the first time around: a plain,
      non-wobbly rect in the drawer's own panel color, painted last (on top
@@ -1937,10 +2037,11 @@
      rounded rect — while leaving the *right* edge, the one boundary
      actually meant to be seen, wobbly. Extended well past the source's
      own x=0 (to -300) so it still reaches the page's left edge at the
-     peak of the opening spring's overshoot: cubic-bezier(0.34, 1.56,
-     0.64, 1) peaks around 9.8% past its target, and 9.8% of the
-     1243px slide is ~122px — past that, the drawer would briefly show
-     page background on the left mid-bounce without this margin. */
+     peak of the opening spring's overshoot: cubic-bezier(0.34, 1.4,
+     0.64, 1) peaks around 5.3% past its target, ~66px of the 1243px
+     slide — past that, the drawer would briefly show page background
+     on the left mid-bounce without this margin (kept the same -300
+     after the curve was toned down, it's just extra safety margin now). */
   .filter-drawer-fill-mobile {
     position: absolute;
     left: -300px;
@@ -1961,9 +2062,15 @@
     left: 0;
     width: 1240px;
   }
+  /* Section tops recomputed for the smaller option text (point below):
+     upload date's own top (396) is the only literal given; views' and
+     contacts' come from (previous title top + 201 title height + 27 gap
+     to its options + that options list's own height + 53 gap to the next
+     title) — 6/5/4 options at line-height 109%/103.55% of the 100/95/100
+     font sizes below. */
   #filterSectionUpload { top: 396px; }
-  #filterSectionViews { top: 1470px; }
-  #filterSectionContacts { top: 2482px; }
+  #filterSectionViews { top: 1331px; } /* 396+201+27+(6*109)+53 */
+  #filterSectionContacts { top: 2129.75px; } /* 1331+201+27+(5*103.55)+53 */
 
   /* height:201 (all three sections' title bars share this) + normal flow
      lets .filter-options-mobile's margin-top below express point 8's
@@ -1978,7 +2085,7 @@
     inset: 0;
     display: flex;
     align-items: center;
-    padding-left: 80px;
+    padding-left: 53px; /* 80 - 27, per user request */
     font-size: 120px;
     color: var(--text);
     white-space: nowrap;
@@ -2023,6 +2130,14 @@
     background-color: var(--pill-bright);
     -webkit-mask-image: url(assets/masks/filter-title-icon-bg.png);
     mask-image: url(assets/masks/filter-title-icon-bg.png);
+    transition: background-color 0.2s ease;
+  }
+  /* active: this icon's own field (date/views) is the one currently
+     sorting the list — see updateSortArrows(). Inverts the icon-bg/icon
+     pairing's usual colors instead of a third color, so it stays exactly
+     the same two theme variables either way. */
+  .filter-title-icon-bg-mobile.active {
+    background-color: var(--text);
   }
   /* pref contacts back.svg — single layer, same right edge (1119) as
      title-back's own icon-bg above. */
@@ -2066,32 +2181,39 @@
     background-color: var(--text);
     -webkit-mask-image: url(assets/masks/filter-sort-icon.png);
     mask-image: url(assets/masks/filter-sort-icon.png);
-    transition: transform 0.35s ease;
+    transition: transform 0.35s ease, background-color 0.2s ease;
   }
   .filter-sort-icon-mobile.dir-asc .filter-sort-icon-bars-mobile { transform: scaleX(-1); }
+  /* active: inverse of .filter-title-icon-bg-mobile.active above — same
+     two variables, roles swapped. */
+  .filter-sort-icon-bars-mobile.active {
+    background-color: var(--pill-bright);
+  }
 
   .filter-options-mobile {
     position: relative;
     margin-top: 27px;
-    padding-left: 80px;
+    padding-left: 53px; /* 80 - 27, per user request */
     display: flex;
     flex-direction: column;
     -webkit-user-select: none;
     user-select: none;
   }
-  /* max. views' own options list sits 40px lower than upload date's and
-     preferred contacts', per explicit user request — not part of the
-     shared 27px-from-title-bottom rule above. */
-  #mvOptionsMobile {
-    margin-top: 67px;
-  }
   .filter-option-mobile {
-    font-size: 120px;
+    font-size: 100px;
     line-height: 109%;
     color: var(--filter-option-muted);
     white-space: nowrap;
     cursor: pointer;
     transition: color 0.1s ease;
+  }
+  /* max. views' options are smaller than upload date's/preferred
+     contacts' (95 vs 100) — its own longest label ("100 000") needs the
+     extra room more than the others do. line-height's own 109% recomputes
+     automatically against this smaller font-size, no separate override
+     needed. */
+  #mvOptionsMobile .filter-option-mobile {
+    font-size: 95px;
   }
   .filter-option-mobile.selected { color: var(--text); }
   .filter-option-mobile:not(.selected):hover { color: var(--option-hover); }
@@ -2100,6 +2222,11 @@
     #canvas { display: none; }
     #canvasMobile { display: block; }
     #filterDrawerMobile { display: block; }
+    #headerFavMobile { display: block; }
+    /* per user request: no striped overlay or edge-vignette darkening on
+       mobile, just #bgBase's own flat var(--bg-base) (#455934) fill. */
+    #bgStripes { display: none; }
+    .page-vignette { display: none; }
   }
 </style>
 </head>
@@ -2243,6 +2370,17 @@
     </div>
     <div class="filter-options-mobile" id="contactsOptionsMobile"></div>
   </div>
+</div>
+
+<div id="headerFavMobile" title="Show favorites">
+  <script>
+    (function() {
+      var d = document.getElementById("headerFavMobile");
+      if (d) d.style.zoom = window.innerWidth / 1601;
+    })();
+  </script>
+  <div class="header-fav-back-mobile"></div>
+  <div class="header-fav-heart-mobile"></div>
 </div>
 
 <script>
@@ -2797,6 +2935,16 @@ function updateSortArrows() {
      icons' neutral/default orientations mean opposite things. */
   document.getElementById("filterSortUpload").classList.toggle("dir-asc", sortField === "date" && sortDirection === "asc");
   document.getElementById("filterSortViews").classList.toggle("dir-asc", sortField === "views" && sortDirection === "asc");
+
+  // active: this section's sort control is the one currently driving the
+  // list's order (regardless of asc/desc) — inverts icon-bg/icon colors
+  // (see .filter-title-icon-bg-mobile.active / .filter-sort-icon-bars-mobile.active)
+  const udSortActive = sortField === "date";
+  const mvSortActive = sortField === "views";
+  document.querySelector("#filterSectionUpload .filter-title-icon-bg-mobile").classList.toggle("active", udSortActive);
+  document.querySelector("#filterSectionUpload .filter-sort-icon-bars-mobile").classList.toggle("active", udSortActive);
+  document.querySelector("#filterSectionViews .filter-title-icon-bg-mobile").classList.toggle("active", mvSortActive);
+  document.querySelector("#filterSectionViews .filter-sort-icon-bars-mobile").classList.toggle("active", mvSortActive);
 }
 
 function toggleDateSort() {
@@ -2848,9 +2996,15 @@ function toggleFavorite(gameId) {
 }
 
 const headerFav = document.getElementById("headerFav");
-headerFav.addEventListener("click", () => {
+const headerFavMobile = document.getElementById("headerFavMobile");
+
+// Shared by desktop's #headerFav and mobile's #headerFavMobile — same
+// favorites color scheme and behavior on both, per the user's request that
+// mobile keep exactly what desktop already has, not a separate palette.
+function toggleFavoritesView() {
   showingFavoritesOnly = !showingFavoritesOnly;
   headerFav.classList.toggle("active", showingFavoritesOnly);
+  headerFavMobile.classList.toggle("active", showingFavoritesOnly);
   // .active already drives the heart's fill via CSS (see
   // #headerFav.active .header-fav-heart-fill); this just swaps the whole
   // page's palette to match, since "favorites" is the only place it applies.
@@ -2868,15 +3022,100 @@ headerFav.addEventListener("click", () => {
   // user's call — only the palette (favorites-theme) and theme-color meta
   // change
   render(true);
-});
+}
+headerFav.addEventListener("click", toggleFavoritesView);
 
-// Mobile filter drawer. Clicking the tab toggles it open/closed; clicking
-// it again while open closes it back.
+if (headerFavMobile) {
+  headerFavMobile.addEventListener("click", () => {
+    // press feedback only — springs left and back via the .pressed
+    // transition in <style>, independent of showingFavoritesOnly's own
+    // state (this button doesn't stay "pressed in", just a tap animation).
+    headerFavMobile.classList.add("pressed");
+    setTimeout(() => headerFavMobile.classList.remove("pressed"), 220);
+    toggleFavoritesView();
+  });
+}
+
+// Mobile filter drawer. The tab can be tapped (toggles open/closed) or
+// dragged (follows the finger in real time, then snaps to whichever side
+// it's closer to on release) — Pointer Events unify touch and mouse, and
+// setPointerCapture keeps move/up routed to the tab even if the finger
+// wanders off its (partly off-screen, when closed) hit area.
 const filterTabMobile = document.getElementById("filterTabMobile");
 if (filterTabMobile) {
-  filterTabMobile.addEventListener("click", () => {
-    document.getElementById("filterDrawerMobile").classList.toggle("open");
+  const drawerEl = document.getElementById("filterDrawerMobile");
+  const CLOSED_LEFT = -1243;
+  const OPEN_LEFT = 0;
+  const MIDPOINT = (CLOSED_LEFT + OPEN_LEFT) / 2;
+  const TAP_THRESHOLD_PX = 6; // real screen px of movement — below this, it's a tap, not a drag
+  const OVERSHOOT_LIMIT = 60; // design px of "give" past fully-open, per user request
+
+  let dragging = false;
+  let dragStartClientX = 0;
+  let dragStartLeft = 0; // design-space left when this gesture began
+
+  // drawerEl.style.left during an active drag holds the live design-space
+  // position directly (set below); once the drag ends this is cleared and
+  // .open (or its absence) is what actually positions it again.
+  function currentLeftDesign() {
+    if (drawerEl.style.left) return parseFloat(drawerEl.style.left);
+    return drawerEl.classList.contains("open") ? OPEN_LEFT : CLOSED_LEFT;
+  }
+
+  filterTabMobile.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    dragStartClientX = e.clientX;
+    dragStartLeft = currentLeftDesign();
+    drawerEl.style.transition = "none"; // 1:1 follow while dragging, no easing lag
+    filterTabMobile.setPointerCapture(e.pointerId);
   });
+
+  filterTabMobile.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    // real on-screen px -> this drawer's own design-space px: dividing by
+    // zoom here (rather than assigning the real delta directly) is the
+    // same correction #canvas's own left uses — a *declared* left on a
+    // zoomed element gets re-multiplied by that zoom at render time, so
+    // the assigned value has to be pre-divided for the drag to actually
+    // track the finger 1:1 instead of at zoom^2.
+    const zoom = window.innerWidth / 1601;
+    const deltaDesign = (e.clientX - dragStartClientX) / zoom;
+    const rawLeft = dragStartLeft + deltaDesign;
+    let newLeft;
+    if (rawLeft > OPEN_LEFT) {
+      // rubber-band past fully-open, per user request: each extra px of
+      // raw drag moves it less than 1:1, approaching OVERSHOOT_LIMIT
+      // asymptotically instead of hard-stopping dead at 0.
+      const excess = rawLeft - OPEN_LEFT;
+      newLeft = OPEN_LEFT + (excess * OVERSHOOT_LIMIT) / (excess + OVERSHOOT_LIMIT);
+    } else {
+      newLeft = Math.max(CLOSED_LEFT, rawLeft);
+    }
+    drawerEl.style.left = newLeft + "px";
+  });
+
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    drawerEl.style.transition = ""; // restore the CSS spring for the final snap
+    // computed straight from this gesture's own start/end coordinates,
+    // same formula as pointermove — deliberately *not* read back from
+    // drawerEl.style.left, since that's only ever as fresh as the last
+    // pointermove, and a gesture that ends without firing one (e.g. a
+    // fast flick, or a pointerup with no preceding move at all) would
+    // otherwise fall back to stale pre-drag state.
+    const zoom = window.innerWidth / 1601;
+    const totalRealDelta = e.clientX - dragStartClientX;
+    const finalLeft = Math.max(CLOSED_LEFT, Math.min(OPEN_LEFT, dragStartLeft + totalRealDelta / zoom));
+    const wasOpen = dragStartLeft > MIDPOINT;
+    const shouldOpen = Math.abs(totalRealDelta) < TAP_THRESHOLD_PX
+      ? !wasOpen // barely moved: treat as a plain tap, toggle from what it was
+      : finalLeft > MIDPOINT; // real drag: snap to whichever side it's nearer
+    drawerEl.style.left = ""; // let .open (or its absence) drive the position again
+    drawerEl.classList.toggle("open", shouldOpen);
+  }
+  filterTabMobile.addEventListener("pointerup", endDrag);
+  filterTabMobile.addEventListener("pointercancel", endDrag);
 }
 
 // Tapping the page outside the drawer, while it's open, closes it — same
@@ -3455,7 +3694,8 @@ function renderRowsMobile() {
 
   if (!currentList.length) {
     const msg = showingFavoritesOnly ? "you don't love anything. heartless." : "Nothing matches the current filter.";
-    rowsMobileEl.innerHTML = `<div class="empty-state">${msg}</div>`;
+    const cls = showingFavoritesOnly ? "empty-state empty-state-favorites-mobile" : "empty-state";
+    rowsMobileEl.innerHTML = `<div class="${cls}">${msg}</div>`;
     return;
   }
 
@@ -3746,10 +3986,11 @@ function rescale() {
   const canvasMobile = document.getElementById("canvasMobile");
   const mobileScale = window.innerWidth / 1601;
   canvasMobile.style.zoom = mobileScale;
-  // #filterDrawerMobile (see <style>) needs the same zoom, kept in sync
-  // on every resize — it's a position:fixed sibling of #canvasMobile, not
-  // a descendant, so it doesn't inherit this automatically.
+  // #filterDrawerMobile and #headerFavMobile (see <style>) need the same
+  // zoom, kept in sync on every resize — both are position:fixed siblings
+  // of #canvasMobile, not descendants, so neither inherits this automatically.
   document.getElementById("filterDrawerMobile").style.zoom = mobileScale;
+  document.getElementById("headerFavMobile").style.zoom = mobileScale;
 
   document.body.style.minHeight = Math.max(
     canvas.scrollHeight * scale,
