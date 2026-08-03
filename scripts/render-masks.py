@@ -248,6 +248,24 @@ SHAPES_RECT_IS_SPEC_SIZE = [
     # scale/seed match desktop's contacts-bg/description-N family exactly.
     ("m-contacts-back", 230, 194, 16, 0.0099999997764825821, 6, 7089, 10),
 
+    # Mobile description panel backdrops — one per line count, 1 through
+    # 10, same idea as desktop's own description-N (see fitRowDescription
+    # in index.html) but a separate family: mobile's own export uses the
+    # m-video-back/m-line freq/scale/seed (0.0166/4/8124), not desktop's
+    # description-N family (0.01/6/7089). Heights come straight from the
+    # 10 source SVGs, not a formula — same reason desktop's own DESC_
+    # HEIGHTS array isn't N*lineHeight+padding for every N either.
+    ("description-mobile-1", 1281, 135, 16, 0.01666666753590107, 4, 8124, 6),
+    ("description-mobile-2", 1281, 208, 16, 0.01666666753590107, 4, 8124, 6),
+    ("description-mobile-3", 1281, 268, 16, 0.01666666753590107, 4, 8124, 6),
+    ("description-mobile-4", 1281, 337, 16, 0.01666666753590107, 4, 8124, 6),
+    ("description-mobile-5", 1281, 394, 16, 0.01666666753590107, 4, 8124, 6),
+    ("description-mobile-6", 1281, 455, 16, 0.01666666753590107, 4, 8124, 6),
+    ("description-mobile-7", 1281, 524, 16, 0.01666666753590107, 4, 8124, 6),
+    ("description-mobile-8", 1281, 578, 16, 0.01666666753590107, 4, 8124, 6),
+    ("description-mobile-9", 1281, 642, 16, 0.01666666753590107, 4, 8124, 6),
+    ("description-mobile-10", 1281, 698, 16, 0.01666666753590107, 4, 8124, 6),
+
     # Filter drawer (Group 74.svg) — full-page-height sliding panel, mostly
     # off-screen to the left except for a small tab that always peeks out
     # (see index.html's #filterDrawerMobile). Both pieces share the exact
