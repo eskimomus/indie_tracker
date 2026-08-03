@@ -1929,10 +1929,12 @@
   .description-text-mobile {
     position: relative;
     z-index: 1;
-    /* left/right(40)/bottom(20) unchanged from before; top is now the
-       spec's own 31. left/right have no spec number given — picked to
-       comfortably clear the backdrop's rounded (16px) corners. */
-    padding: 31px 40px 20px 40px;
+    /* left/right(40) unchanged from before; top is now the spec's own
+       31. left/right have no spec number given — picked to comfortably
+       clear the backdrop's rounded (16px) corners. Bottom is 0 here, not
+       20 — see ::after below for why the actual 20px bottom gap moved
+       out of padding. */
+    padding: 31px 40px 0 40px;
     font-size: 70px;
     line-height: 61px;
     color: var(--text);
@@ -1950,6 +1952,22 @@
     max-width: 100%;
     box-sizing: border-box;
     margin: 0 auto;
+  }
+  /* A container's own padding-bottom isn't reliably scrollable-into on
+     overflow-y: auto — scrolling to the very end lands flush against the
+     last line instead of leaving that padding visible below it (this is
+     a long-standing, widely-reported browser quirk, not specific to this
+     page). Only shows up once a description is actually long enough to
+     need scrolling; text short enough to fit without scrolling never
+     exercises it, which is why only the scrollable case was missing this
+     gap. An ::after spacer is genuine flow content instead of padding,
+     so it *is* part of the scrollable range like any other line would
+     be — same 20px either way, just relocated so it actually reaches the
+     end of a scroll. */
+  .description-text-mobile::after {
+    content: "";
+    display: block;
+    height: 20px;
   }
   /* mobile's own favorites-empty variant — desktop's .empty-state-favorites
      doesn't apply here (its centering math is tied to #canvas's own
@@ -3823,6 +3841,18 @@ function renderMoreRows(count = ROW_BATCH_SIZE) {
 // EXTRA), since .row-description-wrap-mobile's own top is already the
 // final resting position (see DESC_TOP_MOBILE below), not stacked below
 // another flow element the way desktop's divider-bottom-extra etc. are.
+// Desktop's padding lives on .description-box (the outer wrapper) with
+// .description-text itself unpadded, so descText.scrollHeight there is a
+// pure line-count measurement. Mobile's padding lives on
+// .description-text-mobile itself instead (box-sizing: border-box) with
+// .description-box-mobile carrying none of its own — copying desktop's
+// formula verbatim here without accounting for that swap meant
+// text.scrollHeight always carried an extra 51px of its own padding into
+// the line-count division, rounding every description up one line too
+// many (see fitRowDescriptionMobile below for the fix: subtract
+// DESC_PADDING_MOBILE before dividing by line-height, and don't add it a
+// second time onto boxHeight, since the box has no padding of its own
+// left to account for).
 const DESC_LINE_HEIGHT_MOBILE = 61; // .description-text-mobile's own line-height
 const DESC_HEIGHTS_MOBILE = [135, 208, 268, 337, 394, 455, 524, 578, 642, 698];
 const DESC_PADDING_MOBILE = 51; // 31 + 20
@@ -3856,14 +3886,26 @@ function fitRowDescriptionMobile(row) {
   const text = row.querySelector(".description-text-mobile");
   if (!wrap || !box || !back || !text) return;
 
+  // text.scrollHeight already includes .description-text-mobile's own
+  // 51px padding (see the comment above), so that padding has to come
+  // back out before dividing by line-height — otherwise every count
+  // rounds up one line (51/61 ≈ 0.84, enough to always round up
+  // regardless of the real line count).
   const naturalHeight = text.scrollHeight;
-  const lineCount = Math.max(1, Math.round(naturalHeight / DESC_LINE_HEIGHT_MOBILE));
+  const lineCount = Math.max(1, Math.round((naturalHeight - DESC_PADDING_MOBILE) / DESC_LINE_HEIGHT_MOBILE));
   const cappedLines = Math.min(lineCount, DESC_HEIGHTS_MOBILE.length);
-  const designCapacity = DESC_HEIGHTS_MOBILE[cappedLines - 1] - DESC_PADDING_MOBILE;
+  // No "- DESC_PADDING_MOBILE" here (unlike desktop's designCapacity):
+  // .description-box-mobile has no padding of its own, so the backdrop's
+  // own declared height *is* directly the text element's own target
+  // (padding-inclusive) max-height, not something to derive padding's
+  // share out of first.
+  const designCapacity = DESC_HEIGHTS_MOBILE[cappedLines - 1];
   const textMaxHeight = lineCount > DESC_HEIGHTS_MOBILE.length
     ? designCapacity
     : Math.max(naturalHeight, designCapacity);
-  const boxHeight = textMaxHeight + DESC_PADDING_MOBILE;
+  // boxHeight = textMaxHeight directly, same reason — nothing left at
+  // the box level to add padding for.
+  const boxHeight = textMaxHeight;
 
   back.style.maskImage = `url(assets/masks/description-mobile-${cappedLines}.png)`;
   back.style.webkitMaskImage = back.style.maskImage;
