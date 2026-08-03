@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 from sqlalchemy import func
-import asyncio
+import threading
 
 from database import init_db, get_session, get_db_path
 from models import Game, Finding
@@ -41,7 +41,7 @@ def on_startup():
     start_scheduler()  # автосбор каждые 6 часов продолжает работать в фоне,
                         # пока сервер запущен — это отдельно от ручного запуска
     # запускаем сбор данных сразу при старте сервера, не блокируя запуск
-    asyncio.get_event_loop().run_in_executor(None, run_all_ingestion)
+    threading.Thread(target=run_all_ingestion, daemon=True).start()
 
 
 @app.get("/api/last-updated")
