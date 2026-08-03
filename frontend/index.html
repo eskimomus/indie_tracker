@@ -1567,6 +1567,17 @@
        filter drawer) scrolls with the rest of the page). */
     padding-top: 452px;
     padding-bottom: 80px;
+    /* same cross-fade + Safari CALayer-hoisting fix as .rows (see that
+       comment) — .row-mobile has its own z-index'd masked descendants
+       (badges, .more-btn-mobile) that need to stay trapped inside this
+       group layer for the whole subtree to fade together instead of
+       those pieces staying opaque while the rest fades out. */
+    transition: opacity 0.25s linear;
+    z-index: 1;
+    isolation: isolate;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    will-change: opacity;
   }
   .row-mobile {
     position: relative;
@@ -2690,11 +2701,37 @@ async function loadGames() {
   // clears the flag once the swap actually happens, same as any other
   // resetView caller.
   renderTransitionInProgress = true;
+  renderTransitionInProgressMobile = true;
   const params = new URLSearchParams();
   if (metricValue) params.set("max_metric", metricValue);
   if (periodValue) params.set("period", periodValue);
-  const res = await fetch(`${API}/api/games?${params.toString()}`);
-  allGames = await res.json();
+  const url = `${API}/api/games?${params.toString()}`;
+
+  // A transient failure here (network blip, backend still warming up right
+  // after a cold start) used to leave the page permanently empty — nothing
+  // else ever retries loadGames on its own, so the only way out was a
+  // manual reload (reported specifically on first visit, the one moment
+  // this fetch has no already-loaded data to fall back on). One automatic
+  // retry after a short delay covers that case without masking a
+  // genuinely broken endpoint, which just fails the retry too and falls
+  // through to the empty-state message below instead of hanging forever.
+  async function fetchGames() {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`/api/games responded ${res.status}`);
+    return res.json();
+  }
+  try {
+    allGames = await fetchGames();
+  } catch (err) {
+    console.error("loadGames: first attempt failed, retrying once", err);
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      allGames = await fetchGames();
+    } catch (err2) {
+      console.error("loadGames: retry also failed", err2);
+      allGames = [];
+    }
+  }
   render(true);
 }
 
@@ -3064,7 +3101,7 @@ function toggleFavorite(gameId) {
     render(true);
   } else {
     // .badge-fav-mobile alongside .badge-fav — both templates render the
-    // same data-fav-toggle id at once (see renderRowsMobile), so this
+    // same data-fav-toggle id at once (see renderMoreRowsMobile), so this
     // needs to update whichever of the two is actually showing.
     document.querySelectorAll(`.badge-fav[data-fav-toggle="${gameId}"], .badge-fav-mobile[data-fav-toggle="${gameId}"]`).forEach(el => {
       el.classList.toggle("active", !isRemoving);
@@ -3098,6 +3135,7 @@ function toggleFavoritesView() {
   // page title stays "eskimo's indie tracker" in both states, per the
   // user's call — only the palette (favorites-theme) and theme-color meta
   // change
+  nudgeIOSChromeColor();
   render(true);
 }
 headerFav.addEventListener("click", toggleFavoritesView);
@@ -3190,6 +3228,7 @@ if (filterTabMobile) {
       : finalLeft > MIDPOINT; // real drag: snap to whichever side it's nearer
     drawerEl.style.left = ""; // let .open (or its absence) drive the position again
     drawerEl.classList.toggle("open", shouldOpen);
+    nudgeIOSChromeColor();
   }
   filterTabMobile.addEventListener("pointerup", endDrag);
   filterTabMobile.addEventListener("pointercancel", endDrag);
@@ -3205,6 +3244,7 @@ document.addEventListener("click", (e) => {
   const drawer = document.getElementById("filterDrawerMobile");
   if (drawer.classList.contains("open") && !e.target.closest("#filterDrawerMobile")) {
     drawer.classList.remove("open");
+    nudgeIOSChromeColor();
     e.preventDefault();
     e.stopPropagation();
   }
@@ -3488,7 +3528,7 @@ function attachRowListeners(root) {
       e.stopPropagation();
       const gameId = el.dataset.moreToggle;
       // .row-mobile alongside .row — both templates render the same
-      // data-more-toggle id at once (see renderRowsMobile), so a plain
+      // data-more-toggle id at once (see renderMoreRowsMobile), so a plain
       // document-wide `[data-desc-wrap=id]` fallback would risk matching
       // the *other* template's wrap instead of this row's own; scoping to
       // whichever row this specific button lives in avoids that.
@@ -3565,10 +3605,19 @@ function attachRowListeners(root) {
 const ROW_BATCH_SIZE = 30;
 let currentList = [];
 let renderedCount = 0;
+// Mobile's own counter — #rows and #rowsMobile are separate DOM trees
+// rendered from the same currentList but batched/faded independently (see
+// render() below), so they can't share one counter without one tree's
+// batching thinking the other's already-rendered rows are its own.
+let renderedCountMobile = 0;
 // True from the moment a resetView render's fade-out starts until its
 // DOM swap actually happens — see the maybeLoadMoreRows comment below for
-// why this exists.
+// why this exists. Separate flag per tree, same reason as renderedCountMobile
+// above: #rows and #rowsMobile now fade out/in on their own independent
+// schedules, so one finishing its swap shouldn't let the other's
+// scroll-triggered loading run against a still-mid-transition tree.
 let renderTransitionInProgress = false;
+let renderTransitionInProgressMobile = false;
 
 // Binary-searches the longest prefix of `fullTitle` (+ a literal "...")
 // that still fits `link`'s box — see the .row-head-title comment in
@@ -3736,13 +3785,18 @@ const ROW_MOBILE_BASE_HEIGHT = 1324; // .row-mobile's own closed-state height
 const DESC_TOP_MOBILE = 1262; // .row-description-wrap-mobile's own top
 const DESC_TRAILING_GAP_MOBILE = 20; // gap from the description's own bottom edge to the row's end, once open
 
-// Mobile's own row list — kept deliberately simple compared to
-// renderMoreRows above: no ROW_BATCH_SIZE/sentinel-driven incremental
-// loading yet (nothing here to worry about resource-ceiling-wise until
-// this template also needs to carry hundreds of rows' worth of masks),
-// just the whole currentList at once, rebuilt on every render() call
-// (kept alongside the desktop tree rather than swapped in/out of it, so
-// resizing across the breakpoint never finds a stale, un-rendered half).
+// Mobile's own row list — kept alongside the desktop tree rather than
+// swapped in/out of it, so resizing across the breakpoint never finds a
+// stale, un-rendered half. Used to just dump the whole currentList in one
+// go regardless of its size; that meant every filter/favorites change
+// forced hundreds of mask-heavy rows through fitRowDescriptionMobile's
+// scrollHeight read (a real, layout-forcing DOM read, once per row) in a
+// single synchronous burst — the actual source of "updates take forever
+// on mobile". renderMoreRowsMobile/maybeLoadMoreRowsMobile below mirror
+// renderMoreRows/maybeLoadMoreRows above instead: a bounded batch up
+// front, the rest loaded in as the user scrolls, same "keeps live DOM/
+// paint cost roughly constant regardless of list size" fix desktop
+// already has.
 //
 // Picks the description-mobile-N backdrop matching `row`'s actual
 // description length, same algorithm as desktop's fitRowDescription:
@@ -3786,25 +3840,22 @@ function fitRowDescriptionMobile(row) {
   }
 }
 
-function renderRowsMobile() {
+function renderMoreRowsMobile(count = ROW_BATCH_SIZE) {
   const rowsMobileEl = document.getElementById("rowsMobile");
-  if (!rowsMobileEl) return;
-
-  if (!currentList.length) {
-    const msg = showingFavoritesOnly ? "you don't love anything. heartless." : "Nothing matches the current filter.";
-    const cls = showingFavoritesOnly ? "empty-state empty-state-favorites-mobile" : "empty-state";
-    rowsMobileEl.innerHTML = `<div class="${cls}">${msg}</div>`;
-    return;
-  }
+  const sentinel = document.getElementById("scrollSentinelMobile");
+  const nextBatch = currentList.slice(renderedCountMobile, renderedCountMobile + count);
+  if (!nextBatch.length) return;
 
   const template = document.createElement("template");
-  template.innerHTML = currentList.map((g, i) => renderRowHtmlMobile(g, i)).join("");
+  template.innerHTML = nextBatch.map((g, i) => renderRowHtmlMobile(g, renderedCountMobile + i)).join("");
   const rows = [...template.content.querySelectorAll(".row-mobile")];
   attachRowListeners(template.content);
-  rowsMobileEl.innerHTML = "";
-  rowsMobileEl.appendChild(template.content);
+  rowsMobileEl.insertBefore(template.content, sentinel);
 
   rows.forEach(row => fitRowDescriptionMobile(row));
+
+  renderedCountMobile += nextBatch.length;
+  rescale();
 }
 
 // Checked directly via getBoundingClientRect on scroll, rather than an
@@ -3839,6 +3890,18 @@ function maybeLoadMoreRows() {
   }
 }
 
+// Mobile's own version of maybeLoadMoreRows above — same reasoning, gated
+// on renderTransitionInProgressMobile instead since #rowsMobile now fades
+// (and reloads) independently of #rows (see render()).
+function maybeLoadMoreRowsMobile() {
+  if (renderTransitionInProgressMobile) return;
+  const sentinel = document.getElementById("scrollSentinelMobile");
+  if (!sentinel) return;
+  while (renderedCountMobile < currentList.length && sentinel.getBoundingClientRect().top < window.innerHeight + 1000) {
+    renderMoreRowsMobile();
+  }
+}
+
 let scrollCheckQueued = false;
 window.addEventListener("scroll", () => {
   if (scrollCheckQueued) return;
@@ -3846,6 +3909,7 @@ window.addEventListener("scroll", () => {
   requestAnimationFrame(() => {
     scrollCheckQueued = false;
     maybeLoadMoreRows();
+    maybeLoadMoreRowsMobile();
     stopDistantVideos();
   });
 });
@@ -3947,10 +4011,13 @@ function render(resetView = false) {
   // (new filter results, switching to/from favorites-only, re-sorting by
   // priority) pass resetView so they start clean at the top instead.
   const previousRenderedCount = resetView ? 0 : renderedCount;
+  const previousRenderedCountMobile = resetView ? 0 : renderedCountMobile;
   currentList = sortAndFilter();
   renderedCount = 0;
+  renderedCountMobile = 0;
 
   const rowsEl = document.getElementById("rows");
+  const rowsMobileEl = document.getElementById("rowsMobile");
 
   const applyContent = () => {
     // Safe to clear right at the top, before touching the DOM at all: the
@@ -3972,21 +4039,58 @@ function render(resetView = false) {
       // never come
       maybeLoadMoreRows();
     }
-    renderRowsMobile();
     if (resetView) fadeRowsIn(rowsEl);
+  };
+
+  // Mobile's own version of applyContent above — kept independent (own
+  // batching counter, own transition flag, own fade) rather than folded
+  // into applyContent, so #rows and #rowsMobile each swap/fade on their
+  // own schedule instead of one tree's fade timing gating the other's
+  // rebuild. That coupling used to be the actual cause of "old rows hang
+  // around, then vanish all at once" on mobile: renderRowsMobile() was
+  // called from inside applyContent, so a mobile rebuild (which had no
+  // fade of its own) sat frozen for the entire ~250ms #rows fade-out
+  // before finally snapping to the new content the instant applyContent
+  // ran.
+  const applyContentMobile = () => {
+    renderTransitionInProgressMobile = false;
+    if (!rowsMobileEl) return;
+    if (!currentList.length) {
+      const msg = showingFavoritesOnly ? "you don't love anything. heartless." : "Nothing matches the current filter.";
+      const cls = showingFavoritesOnly ? "empty-state empty-state-favorites-mobile" : "empty-state";
+      rowsMobileEl.innerHTML = `<div class="${cls}">${msg}</div>`;
+      // Unlike desktop's showEmptyState, no scrollY-preservation dance here
+      // (mobile's own empty state is a separate, smaller feature) — but
+      // still needs this, or body's min-height (see rescale()) stays stuck
+      // at whatever the previous, likely much taller, content needed.
+      rescale();
+    } else {
+      rowsMobileEl.innerHTML = `<div id="scrollSentinelMobile"></div>`;
+      const initialCountMobile = Math.max(ROW_BATCH_SIZE, Math.min(previousRenderedCountMobile, currentList.length));
+      renderMoreRowsMobile(initialCountMobile);
+      maybeLoadMoreRowsMobile();
+    }
+    if (resetView) fadeRowsIn(rowsMobileEl);
   };
 
   // Only cross-fade for a genuine filter/dataset change (resetView), and
   // only if there's actually something on screen yet to fade out (skips
-  // the fade on first page load, when #rows starts out empty) — the
-  // favorite-toggle/etc. re-renders (resetView=false) stay instant, since
-  // fading the whole visible batch just to reflect one heart click would
-  // read as overkill and would interrupt anyone mid-scroll.
+  // the fade on first page load, when #rows/#rowsMobile start out empty)
+  // — the favorite-toggle/etc. re-renders (resetView=false) stay instant,
+  // since fading the whole visible batch just to reflect one heart click
+  // would read as overkill and would interrupt anyone mid-scroll.
   if (resetView && rowsEl.children.length) {
     renderTransitionInProgress = true;
     fadeRowsOut(rowsEl, applyContent);
   } else {
     applyContent();
+  }
+
+  if (resetView && rowsMobileEl && rowsMobileEl.children.length) {
+    renderTransitionInProgressMobile = true;
+    fadeRowsOut(rowsMobileEl, applyContentMobile);
+  } else {
+    applyContentMobile();
   }
 }
 
@@ -4059,6 +4163,56 @@ function getSafeAreaInsets() {
   const bottom = parseFloat(cs.paddingBottom) || 0;
   probe.remove();
   return { top, bottom };
+}
+
+// iOS Safari (viewport-fit=cover) only seems to re-sample the color it
+// tints the status-bar/toolbar safe-area strips with on an actual scroll
+// event — not on an arbitrary same-page repaint like a CSS class toggle,
+// which is why those strips kept showing whichever theme was active the
+// *last* time the page scrolled (the original page-load green) instead of
+// the current one, even after themeColorMeta and every background var
+// were already updated correctly. Nudging scrollY by 1px and immediately
+// back (imperceptible, and only ever queued behind an actual next frame,
+// not coalesced away in the same tick) is the workaround commonly used
+// for this — prompting a real re-sample without visibly moving the page.
+// Unverified on a real device from here (no iOS hardware in this
+// environment); if the strips still don't track the theme after this,
+// that'll need confirming on-device.
+function nudgeIOSChromeColorNow() {
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  if (maxScroll <= 0) {
+    // Nothing to scroll (e.g. the favorites-empty state — exactly the
+    // case in the user's own screenshot) — scrollTo has nowhere valid to
+    // move to, so no scroll event would fire at all. Borrow 2px of scroll
+    // room from body's own min-height just long enough for one real
+    // scroll-and-back, then hand it straight back to rescale().
+    const prevMinHeight = document.body.style.minHeight;
+    document.body.style.minHeight = (window.innerHeight + 2) + "px";
+    window.scrollTo(0, 1);
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      document.body.style.minHeight = prevMinHeight;
+    });
+    return;
+  }
+  // Relative, not remembered-absolute-then-restore: self-canceling by
+  // construction regardless of anything else nudging scrollY in between,
+  // rather than depending on this exact y still being correct a frame
+  // later (clamps near the very top/bottom are the one place those two
+  // aren't quite equivalent, but a 1px error there is imperceptible).
+  window.scrollBy(0, 1);
+  requestAnimationFrame(() => window.scrollBy(0, -1));
+}
+// Callers (favorites toggle, drawer open/close) all trigger a render()
+// fade or a drawer spring that hasn't actually finished settling into its
+// final layout yet — nudging immediately would measure scroll room
+// against the *outgoing* page (e.g. still the tall all-games list, not
+// the short empty-state it's mid-fade toward), the wrong state for
+// deciding whether the "no scroll room" branch above should even apply.
+// 600ms comfortably outlasts both the fade-out+fade-in pair (250ms each)
+// and the drawer's own 450ms spring.
+function nudgeIOSChromeColor() {
+  setTimeout(nudgeIOSChromeColorNow, 600);
 }
 
 function rescale() {
