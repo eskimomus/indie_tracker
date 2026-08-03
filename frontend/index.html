@@ -153,7 +153,7 @@
   .filter-drawer-back-mobile, .filter-tab-back-mobile, .filter-tab-flag-mobile,
   .filter-title-strip-mobile, .filter-title-accent-mobile, .filter-title-icon-bg-mobile,
   .filter-contacts-strip-mobile, .filter-sort-icon-bars-mobile,
-  .header-fav-back-mobile, .header-fav-heart-mobile {
+  .header-fav-back-mobile, .header-fav-heart-mobile, .description-back-mobile {
     -webkit-mask-repeat: no-repeat;
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
@@ -1581,11 +1581,19 @@
     width: 1601px;
     /* Repeat period from one row's title to the next's, derived from the
        spec chain: title(0) -> top-line(190) -> video-back(242, +738 =
-       980) -> contacts row(1000, +194 = 1194) -> bottom line(1214, +32 =
-       1246) -> 320px gap -> next video-back(1566) -> next title sits
+       980) -> contacts row(1000, +194 = 1194) -> bottom line(1214, +28 =
+       1242) -> 324px gap -> next video-back(1566) -> next title sits
        242px above *its own* video-back, same as this row, so next title
        = 1566 - 242 = 1324. */
     height: 1324px;
+    /* grown by exactly the open description's own height when it's
+       expanded (see the [data-more-toggle] handler below) — same
+       duration/curve as .row-description-wrap-mobile's own height
+       transition so the row's footprint and the panel's reveal move in
+       lockstep, which is what actually pushes the *next* row (a normal
+       block-flow sibling within #rowsMobile) smoothly out of the way
+       instead of the description just overlapping it. */
+    transition: height 0.5s cubic-bezier(0.45, 0, 0.55, 1);
   }
   .row-title-mobile {
     position: absolute;
@@ -1614,16 +1622,24 @@
 
   .line-mobile {
     position: absolute;
-    left: 160px; /* (1601-1281)/2 — page-centered, same as video-back below */
-    width: 1281px;
-    height: 32px;
+    /* (1601-1281)/2 = 160 is the page-centered *visible* left edge (same
+       math as video-back below), 28 the *visible* height — then grown by
+       m-line's own 6px mask margin on every side (left -6, width +12,
+       height +12, and top handled the same way by .row-topline-mobile/
+       -bottomline-mobile below), same convention as .video-bg-mobile /
+       filter-title-strip-mobile etc. Without this the larger mask canvas
+       (1293x40) gets squished into the smaller undersized box, pulling
+       the visible wobbly line inward from its intended edges. */
+    left: 154px; /* 160 - 6 */
+    width: 1293px; /* 1281 + 2*6 */
+    height: 40px; /* 28 + 2*6 */
     background-color: var(--panel-dark);
     opacity: 0.6;
     -webkit-mask-image: url(assets/masks/m-line.png);
     mask-image: url(assets/masks/m-line.png);
   }
-  .row-topline-mobile { top: 190px; }
-  .row-bottomline-mobile { top: 1214px; }
+  .row-topline-mobile { top: 184px; } /* 190 - 6 */
+  .row-bottomline-mobile { top: 1208px; } /* 1214 - 6 */
 
   .video-wrap-mobile {
     position: absolute;
@@ -1697,7 +1713,11 @@
   }
   .contact-pill-back-mobile {
     position: absolute;
-    inset: 0;
+    /* m-contacts-back's canvas grows 10px on every side (see render-masks.py)
+       — inset:0 was squishing that larger canvas into the pill's bare
+       230x194 box, pulling the visible wobbly edges inward. Matches the
+       .video-wrap-mobile/.video-bg-mobile wrapper+inset pattern. */
+    inset: -10px;
     background-color: var(--panel-dark);
     opacity: 0.6;
     -webkit-mask-image: url(assets/masks/m-contacts-back.png);
@@ -1781,13 +1801,20 @@
   .more-btn-mobile {
     position: absolute;
     left: 111.5px; /* 171.5 - 60 — 171.5 is the rank icon's own horizontal center (81 + 181/2) */
-    top: 1170px; /* 1230 - 60 — 1230 is the bottom-line's own vertical center (1214 + 32/2) */
+    top: 1168px; /* 1228 - 60 — 1228 is the bottom-line's own vertical center (1214 + 28/2) */
     width: 120px;
     height: 120px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+    /* the description panel's own top (1262) sits above this button's own
+       bottom (1288) by design — the button overlaps the panel's top ~26px
+       like a tab sitting on it, not clear of it — so it needs a z-index
+       to stay visually in front of .description-back-mobile/-text-mobile
+       there, which would otherwise win on DOM order alone (they come
+       later in the row template). */
+    z-index: 10;
   }
   .more-btn-back-mobile {
     position: absolute;
@@ -1812,24 +1839,65 @@
   }
   .more-btn-mobile.open .more-btn-symbol-mobile { transform: translate(-50%, -50%) rotate(45deg); }
 
-  /* Bare-minimum expand/collapse — no backdrop yet (pending the
-     description-panel spec pass) — just proves the toggle end to end. */
+  /* Description panel — same two-stage reveal as desktop's own
+     .row-description-wrap/.description-box: this outer wrap is what
+     actually animates (height 0 -> openHeight, overflow:hidden), while
+     .description-box-mobile inside it holds a *fixed* (JS-set, not
+     transitioned) height matching whichever description-mobile-N backdrop
+     fits — so opening looks like the panel wiping into view from the
+     top, not the backdrop itself stretching/distorting as it goes. */
   .row-description-wrap-mobile {
     position: absolute;
-    top: 1246px;
+    /* 1262 = 1242 + 20 — 1242 is the bottom line's own true visible bottom
+       edge (top:1214 + height:28), per spec. The more-btn (top:1168,
+       height:120, bottom:1288) overlaps this panel's own top ~26px as a
+       result — intentional, it sits in front via its own z-index (see
+       .more-btn-mobile) like a tab on the panel it toggles, rather than
+       the panel being pushed down to clear it. left/width already match
+       the bottom line's own *visible* span (160/1281 — see .line-mobile's
+       margin-compensated box) exactly, so this is already center-aligned
+       to the bottom line horizontally. */
+    top: 1262px;
     left: 160px;
     width: 1281px;
     height: 0;
     overflow: hidden;
     transition: height 0.5s cubic-bezier(0.45, 0, 0.55, 1);
   }
+  .description-box-mobile {
+    position: relative;
+    width: 100%;
+  }
+  .description-back-mobile {
+    position: absolute;
+    inset: -6px;
+    background-color: var(--desc-bg);
+    opacity: 0.6;
+  }
   .description-text-mobile {
-    padding: 20px 0;
-    font-size: 55px;
-    line-height: 1.4;
+    position: relative;
+    z-index: 1;
+    /* left/right(40)/bottom(20) unchanged from before; top is now the
+       spec's own 31. left/right have no spec number given — picked to
+       comfortably clear the backdrop's rounded (16px) corners. */
+    padding: 31px 40px 20px 40px;
+    font-size: 70px;
+    line-height: 61px;
     color: var(--text);
     white-space: pre-wrap;
     word-break: break-word;
+    overflow-y: auto;
+    /* text itself stays left-aligned (each line starts flush at this
+       box's own left edge) — it's the *box* that centers: sized to its
+       own content (up to the backdrop's full width as a cap) rather than
+       always stretching to fill it, then margin:auto centers that box
+       within the wider backdrop. box-sizing so the left/right padding
+       above counts *inside* max-width instead of pushing past it. */
+    text-align: left;
+    width: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 0 auto;
   }
   /* mobile's own favorites-empty variant — desktop's .empty-state-favorites
      doesn't apply here (its centering math is tied to #canvas's own
@@ -1900,8 +1968,13 @@
   }
   .filter-drawer-back-mobile {
     position: absolute;
-    top: -6px;
-    bottom: -6px;
+    /* --safe-top-design/--safe-bottom-design set in rescale() — backs this
+       off from the notch/home-indicator/toolbar-overlap strips instead of
+       painting dark all the way to the real screen edge there (see that
+       comment). Falls back to the original plain -6px when unset (e.g.
+       first paint before JS runs) or on a device with no inset. */
+    top: calc(var(--safe-top-design, 0px) - 6px);
+    bottom: calc(var(--safe-bottom-design, 0px) - 6px);
     left: -6px;
     width: 1252px; /* 1240 visible + 6px margin each side */
     background-color: var(--panel-dark);
@@ -2045,9 +2118,13 @@
   .filter-drawer-fill-mobile {
     position: absolute;
     left: -300px;
-    top: 0;
+    /* same --safe-top-design/--safe-bottom-design back-off as
+       .filter-drawer-back-mobile above, and for the same reason — top
+       shifts down by the top inset, height shrinks by both, so this
+       layer's own bottom edge stays put while its top backs off. */
+    top: var(--safe-top-design, 0px);
     width: 1515px;
-    height: 3468px;
+    height: calc(3468px - var(--safe-top-design, 0px) - var(--safe-bottom-design, 0px));
     background-color: var(--panel-dark);
     /* same counter-shift as .filter-drawer-back-mobile above, and for the
        same reason — this is the other of the "two backdrop layers" that
@@ -3372,7 +3449,10 @@ function renderRowHtmlMobile(g, index) {
       </div>
 
       <div class="row-description-wrap-mobile" data-desc-wrap="${g.id}">
-        <div class="description-text-mobile">${escapeHtml(g.best_source.description || "No description available.")}</div>
+        <div class="description-box-mobile">
+          <div class="description-back-mobile"></div>
+          <div class="description-text-mobile">${escapeHtml(g.best_source.description || "No description available.")}</div>
+        </div>
       </div>
     </div>`;
 }
@@ -3401,7 +3481,6 @@ function attachRowListeners(root) {
     updateMask();
     el.addEventListener("scroll", updateMask, { passive: true });
     el._updateDescMask = updateMask;
-    attachDescScrollEasing(el);
   });
 
   root.querySelectorAll("[data-more-toggle]").forEach(el => {
@@ -3423,6 +3502,20 @@ function attachRowListeners(root) {
       // match whichever description-N backdrop that row's actual line
       // count needs — replaces a single fixed open height for every row.
       wrap.style.height = isOpen ? (wrap.dataset.openHeight + "px") : "0px";
+      // .row's own height is auto (content-flow), so an opening
+      // description there already pushes the next .row down for free.
+      // .row-mobile has a *declared* height instead (its children are all
+      // position:absolute, same as the rest of the mobile template, so
+      // there's no flow content to auto-grow it) — grow it explicitly by
+      // the description's own open height, with the matching transition
+      // on .row-mobile itself (see <style>), so the next row-mobile (a
+      // normal block-flow sibling within #rowsMobile) gets smoothly
+      // pushed down instead of the panel just overlapping it.
+      if (row && row.classList.contains("row-mobile")) {
+        row.style.height = isOpen
+          ? (DESC_TOP_MOBILE + Number(wrap.dataset.openHeight) + DESC_TRAILING_GAP_MOBILE) + "px"
+          : ROW_MOBILE_BASE_HEIGHT + "px";
+      }
       if (isOpen && row) {
         const descEl = row.querySelector(".description-text");
         if (descEl && descEl._updateDescMask) {
@@ -3599,53 +3692,8 @@ function refitAllRowDescriptions() {
   document.querySelectorAll(".row").forEach(row => fitRowDescription(row));
 }
 
-// Native wheel-scrolling jumps straight to wherever the input device's
-// delta lands, tick by tick, with no easing of its own — dragging the
-// scrollbar thumb itself stays untouched (a drag has to track the mouse
-// 1:1, there's nothing to ease there), but a wheel/trackpad tick over the
-// text gets animated toward its target instead, accelerating in and
-// decelerating out like everything else's cubic-bezier(0.45, 0, 0.55, 1)
-// motion on this page.
-const DESC_SCROLL_EASE_DURATION = 380;
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-function attachDescScrollEasing(el) {
-  let target = null; // current in-flight animation's destination scrollTop
-  let sessionId = 0;
-
-  el.addEventListener("wheel", (e) => {
-    const maxScroll = el.scrollHeight - el.clientHeight;
-    if (maxScroll <= 0) return; // nothing to scroll — let the event pass through untouched
-
-    const base = target !== null ? target : el.scrollTop;
-    // already at the boundary in the direction being scrolled — don't
-    // swallow the event, so the page itself can still scroll (native
-    // overscroll-chaining) instead of the wheel feeling "stuck". A 2px
-    // tolerance, not exact equality against maxScroll: scrollHeight/
-    // clientHeight are integer-rounded even when the underlying layout is
-    // fractional, so the *real* max scrollTop the browser ever actually
-    // lands on sits a little under this maxScroll (measured ~1.16px on a
-    // 2174px-tall description) — comparing base to maxScroll exactly would
-    // mean this branch never fires once genuinely at the bottom.
-    if ((e.deltaY < 0 && base <= 2) || (e.deltaY > 0 && base >= maxScroll - 2)) return;
-    const clamped = Math.max(0, Math.min(maxScroll, base + e.deltaY));
-
-    e.preventDefault();
-    target = clamped;
-    const myId = ++sessionId;
-    const startTop = el.scrollTop;
-    const startTime = performance.now();
-
-    requestAnimationFrame(function step(now) {
-      if (myId !== sessionId) return; // a newer wheel tick took over — let it drive instead
-      const t = Math.min(1, (now - startTime) / DESC_SCROLL_EASE_DURATION);
-      el.scrollTop = startTop + (target - startTop) * easeInOutCubic(t);
-      if (t < 1) requestAnimationFrame(step);
-      else target = null;
-    });
-  }, { passive: false });
 }
 
 function renderMoreRows(count = ROW_BATCH_SIZE) {
@@ -3672,6 +3720,22 @@ function renderMoreRows(count = ROW_BATCH_SIZE) {
   rescale();
 }
 
+// Mobile's own description-mobile-N backdrops — same idea as desktop's
+// DESC_HEIGHTS/fitRowDescription (see that comment), separate constants
+// because mobile's own line-height/padding/backdrop set differs.
+// DESC_PADDING_MOBILE is .description-text-mobile's own padding-top(31) +
+// padding-bottom(20) — the wrap's own open height is just the box height
+// directly, no extra fixed amount added on (unlike desktop's DESC_WRAP_
+// EXTRA), since .row-description-wrap-mobile's own top is already the
+// final resting position (see DESC_TOP_MOBILE below), not stacked below
+// another flow element the way desktop's divider-bottom-extra etc. are.
+const DESC_LINE_HEIGHT_MOBILE = 61; // .description-text-mobile's own line-height
+const DESC_HEIGHTS_MOBILE = [135, 208, 268, 337, 394, 455, 524, 578, 642, 698];
+const DESC_PADDING_MOBILE = 51; // 31 + 20
+const ROW_MOBILE_BASE_HEIGHT = 1324; // .row-mobile's own closed-state height
+const DESC_TOP_MOBILE = 1262; // .row-description-wrap-mobile's own top
+const DESC_TRAILING_GAP_MOBILE = 20; // gap from the description's own bottom edge to the row's end, once open
+
 // Mobile's own row list — kept deliberately simple compared to
 // renderMoreRows above: no ROW_BATCH_SIZE/sentinel-driven incremental
 // loading yet (nothing here to worry about resource-ceiling-wise until
@@ -3679,13 +3743,47 @@ function renderMoreRows(count = ROW_BATCH_SIZE) {
 // just the whole currentList at once, rebuilt on every render() call
 // (kept alongside the desktop tree rather than swapped in/out of it, so
 // resizing across the breakpoint never finds a stale, un-rendered half).
+//
+// Picks the description-mobile-N backdrop matching `row`'s actual
+// description length, same algorithm as desktop's fitRowDescription:
+// measure .description-text-mobile's natural scrollHeight, round to a
+// line count, cap backdrop selection at 10 lines, and past 10 lines let
+// the text scroll internally within the 10th backdrop's own capacity
+// instead of growing forever.
 function fitRowDescriptionMobile(row) {
   const wrap = row.querySelector(".row-description-wrap-mobile");
+  const box = row.querySelector(".description-box-mobile");
+  const back = row.querySelector(".description-back-mobile");
   const text = row.querySelector(".description-text-mobile");
-  if (!wrap || !text) return;
-  // No per-line-count backdrop yet (pending the description-panel spec
-  // pass) — this just opens to the text's own natural height.
-  wrap.dataset.openHeight = text.scrollHeight;
+  if (!wrap || !box || !back || !text) return;
+
+  const naturalHeight = text.scrollHeight;
+  const lineCount = Math.max(1, Math.round(naturalHeight / DESC_LINE_HEIGHT_MOBILE));
+  const cappedLines = Math.min(lineCount, DESC_HEIGHTS_MOBILE.length);
+  const designCapacity = DESC_HEIGHTS_MOBILE[cappedLines - 1] - DESC_PADDING_MOBILE;
+  const textMaxHeight = lineCount > DESC_HEIGHTS_MOBILE.length
+    ? designCapacity
+    : Math.max(naturalHeight, designCapacity);
+  const boxHeight = textMaxHeight + DESC_PADDING_MOBILE;
+
+  back.style.maskImage = `url(assets/masks/description-mobile-${cappedLines}.png)`;
+  back.style.webkitMaskImage = back.style.maskImage;
+  box.style.height = boxHeight + "px";
+  text.style.maxHeight = textMaxHeight + "px";
+  wrap.dataset.openHeight = boxHeight;
+
+  // Re-apply an already-open state after a full row rebuild (render()
+  // tears down and recreates every row on a filter change), same reason
+  // and same pattern as fitRowDescription's own version of this — no
+  // forced reflow in between, so the browser never observes a height:0
+  // frame to transition away from and the panel just appears open.
+  if (openDescriptions.has(wrap.dataset.descWrap)) {
+    wrap.classList.add("open");
+    wrap.style.height = wrap.dataset.openHeight + "px";
+    row.style.height = (DESC_TOP_MOBILE + boxHeight + DESC_TRAILING_GAP_MOBILE) + "px";
+    const moreBtn = row.querySelector("[data-more-toggle]");
+    if (moreBtn) moreBtn.classList.add("open");
+  }
 }
 
 function renderRowsMobile() {
@@ -3946,6 +4044,23 @@ function getPageScale() {
   return 0.7;
 }
 
+// env(safe-area-inset-*) isn't directly readable from JS — the standard
+// workaround is a throwaway probe element whose padding is set from it,
+// then reading that padding back via getComputedStyle (which resolves
+// env() to a real px number). Real device px, not design-space — see the
+// call site in rescale() for the zoom conversion.
+function getSafeAreaInsets() {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;" +
+    "padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);";
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const top = parseFloat(cs.paddingTop) || 0;
+  const bottom = parseFloat(cs.paddingBottom) || 0;
+  probe.remove();
+  return { top, bottom };
+}
+
 function rescale() {
   const canvas = document.getElementById("canvas");
   const ps = getPageScale();
@@ -3989,8 +4104,24 @@ function rescale() {
   // #filterDrawerMobile and #headerFavMobile (see <style>) need the same
   // zoom, kept in sync on every resize — both are position:fixed siblings
   // of #canvasMobile, not descendants, so neither inherits this automatically.
-  document.getElementById("filterDrawerMobile").style.zoom = mobileScale;
+  const filterDrawerEl = document.getElementById("filterDrawerMobile");
+  filterDrawerEl.style.zoom = mobileScale;
   document.getElementById("headerFavMobile").style.zoom = mobileScale;
+  // iOS Safari (viewport-fit=cover) tints/repaints the status-bar and
+  // toolbar-overlap strips at the very top/bottom of the screen to match
+  // whatever's actually painted there — the drawer's own full-height dark
+  // backdrop reaching into those strips while open is what the user
+  // reported as those zones "recoloring". Backing its full-bleed layers
+  // (.filter-drawer-back-mobile/.filter-drawer-fill-mobile) off by
+  // env(safe-area-inset-*) keeps the page's own normal background visible
+  // in those exact strips regardless of the drawer's open/closed state.
+  // Pre-divided by this element's own zoom before storing, same "declared
+  // length on a zoomed element" correction as #canvas's own left above —
+  // otherwise the *rendered* inset comes out scaled down again on top of
+  // the real device value it's already in.
+  const insets = getSafeAreaInsets();
+  filterDrawerEl.style.setProperty("--safe-top-design", (insets.top / mobileScale) + "px");
+  filterDrawerEl.style.setProperty("--safe-bottom-design", (insets.bottom / mobileScale) + "px");
 
   document.body.style.minHeight = Math.max(
     canvas.scrollHeight * scale,
