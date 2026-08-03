@@ -32,6 +32,15 @@ def run_all_ingestion():
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(run_all_ingestion, "interval", hours=6, next_run_time=None)
+    # Раньше здесь стоял next_run_time=None — по документации APScheduler
+    # (apscheduler/schedulers/base.py, add_job) это добавляет задачу
+    # НА ПАУЗЕ, а не просто откладывает первый запуск: ничего в проекте не
+    # вызывает resume_job(), так что автосбор не работал вообще, ни разу.
+    # IntervalTrigger сам по себе уже не запускает задачу немедленно: без
+    # явного start_date его собственное значение по умолчанию —
+    # datetime.now() + interval (apscheduler/triggers/interval.py), то
+    # есть первый настоящий запуск и так будет через 6 часов после
+    # старта сервера, дальше — каждые 6 часов от предыдущего запуска.
+    scheduler.add_job(run_all_ingestion, "interval", hours=6)
     scheduler.start()
     return scheduler
