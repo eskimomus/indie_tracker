@@ -407,6 +407,47 @@
     background: linear-gradient(to right, transparent 0%, #000000 100%);
   }
 
+  /* Unconditional cover for the iOS safe-area strips (status bar under
+     viewport-fit=cover, and whatever of the bottom inset is genuine page
+     content rather than Safari's own separate toolbar chrome) — per user
+     request, these must NEVER show any theme- or drawer-dependent color,
+     under any app state, rather than trying to keep some other layer's
+     color in sync with the current theme (the previous approach: backing
+     the drawer's own backdrop off via env() insets, plus a scroll nudge
+     to prompt iOS to re-sample theme-color — both still in place as
+     defense in depth, but neither is a *guarantee*, since both depend on
+     an inset calculation or an OS re-sample actually happening/being
+     correct). A plain, static background-color, painted above literally
+     everything else (z-index higher than anything else in this file) and
+     sized directly from env() with no zoom involved at all (these are
+     plain top-level fixed elements, not descendants of #canvas/
+     #canvasMobile, so there's no "declared length on a zoomed element"
+     correction needed) is instead simply always true by construction:
+     nothing else can ever paint above it, and its own color never
+     changes with anything, so there's nothing left *to* recolor.
+     Hardcoded to the default (non-favorites) --bg-base value rather than
+     a var(), specifically so it does NOT follow html.favorites-theme —
+     the whole point is this never changes, in either direction.
+     env()'s own fallback (0px) makes both of these zero-height (so
+     nothing renders) on any device/browser without a safe-area-inset,
+     desktop included, without needing a separate media query. */
+  #safeAreaTopMask, #safeAreaBottomMask {
+    position: fixed;
+    left: 0;
+    width: 100%;
+    background-color: #455934;
+    z-index: 999999;
+    pointer-events: none;
+  }
+  #safeAreaTopMask {
+    top: 0;
+    height: env(safe-area-inset-top, 0px);
+  }
+  #safeAreaBottomMask {
+    bottom: 0;
+    height: env(safe-area-inset-bottom, 0px);
+  }
+
   .page {
     /* 1291, matching #toolbarWrap exactly (was 1293) — both are centered
        independently within #canvas via margin:0 auto, so mismatched
@@ -2328,6 +2369,9 @@
 <div class="page-vignette page-vignette-left"></div>
 <div class="page-vignette page-vignette-right"></div>
 
+<div id="safeAreaTopMask"></div>
+<div id="safeAreaBottomMask"></div>
+
 <div id="canvas">
   <script>
     (function() {
@@ -3131,11 +3175,14 @@ function toggleFavoritesView() {
   // engine consulting the other element for some native, non-CSS purpose.
   document.documentElement.classList.toggle("favorites-theme", showingFavoritesOnly);
   document.body.classList.toggle("favorites-theme", showingFavoritesOnly);
-  document.getElementById("themeColorMeta").setAttribute("content", showingFavoritesOnly ? "#533132" : "#415331");
   // page title stays "eskimo's indie tracker" in both states, per the
-  // user's call — only the palette (favorites-theme) and theme-color meta
-  // change
-  nudgeIOSChromeColor();
+  // user's call — only the palette (favorites-theme) changes.
+  // themeColorMeta deliberately does NOT follow favorites-theme (see
+  // #safeAreaTopMask/#safeAreaBottomMask in <style>) — per user request,
+  // the safe-area strips those (and Safari's own address-bar tinting)
+  // feed from must never recolor with anything on the page, so this meta
+  // tag just stays at its one fixed value always instead of chasing the
+  // current theme.
   render(true);
 }
 headerFav.addEventListener("click", toggleFavoritesView);
@@ -3228,7 +3275,6 @@ if (filterTabMobile) {
       : finalLeft > MIDPOINT; // real drag: snap to whichever side it's nearer
     drawerEl.style.left = ""; // let .open (or its absence) drive the position again
     drawerEl.classList.toggle("open", shouldOpen);
-    nudgeIOSChromeColor();
   }
   filterTabMobile.addEventListener("pointerup", endDrag);
   filterTabMobile.addEventListener("pointercancel", endDrag);
@@ -3244,7 +3290,6 @@ document.addEventListener("click", (e) => {
   const drawer = document.getElementById("filterDrawerMobile");
   if (drawer.classList.contains("open") && !e.target.closest("#filterDrawerMobile")) {
     drawer.classList.remove("open");
-    nudgeIOSChromeColor();
     e.preventDefault();
     e.stopPropagation();
   }
@@ -4165,55 +4210,6 @@ function getSafeAreaInsets() {
   return { top, bottom };
 }
 
-// iOS Safari (viewport-fit=cover) only seems to re-sample the color it
-// tints the status-bar/toolbar safe-area strips with on an actual scroll
-// event — not on an arbitrary same-page repaint like a CSS class toggle,
-// which is why those strips kept showing whichever theme was active the
-// *last* time the page scrolled (the original page-load green) instead of
-// the current one, even after themeColorMeta and every background var
-// were already updated correctly. Nudging scrollY by 1px and immediately
-// back (imperceptible, and only ever queued behind an actual next frame,
-// not coalesced away in the same tick) is the workaround commonly used
-// for this — prompting a real re-sample without visibly moving the page.
-// Unverified on a real device from here (no iOS hardware in this
-// environment); if the strips still don't track the theme after this,
-// that'll need confirming on-device.
-function nudgeIOSChromeColorNow() {
-  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-  if (maxScroll <= 0) {
-    // Nothing to scroll (e.g. the favorites-empty state — exactly the
-    // case in the user's own screenshot) — scrollTo has nowhere valid to
-    // move to, so no scroll event would fire at all. Borrow 2px of scroll
-    // room from body's own min-height just long enough for one real
-    // scroll-and-back, then hand it straight back to rescale().
-    const prevMinHeight = document.body.style.minHeight;
-    document.body.style.minHeight = (window.innerHeight + 2) + "px";
-    window.scrollTo(0, 1);
-    requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
-      document.body.style.minHeight = prevMinHeight;
-    });
-    return;
-  }
-  // Relative, not remembered-absolute-then-restore: self-canceling by
-  // construction regardless of anything else nudging scrollY in between,
-  // rather than depending on this exact y still being correct a frame
-  // later (clamps near the very top/bottom are the one place those two
-  // aren't quite equivalent, but a 1px error there is imperceptible).
-  window.scrollBy(0, 1);
-  requestAnimationFrame(() => window.scrollBy(0, -1));
-}
-// Callers (favorites toggle, drawer open/close) all trigger a render()
-// fade or a drawer spring that hasn't actually finished settling into its
-// final layout yet — nudging immediately would measure scroll room
-// against the *outgoing* page (e.g. still the tall all-games list, not
-// the short empty-state it's mid-fade toward), the wrong state for
-// deciding whether the "no scroll room" branch above should even apply.
-// 600ms comfortably outlasts both the fade-out+fade-in pair (250ms each)
-// and the drawer's own 450ms spring.
-function nudgeIOSChromeColor() {
-  setTimeout(nudgeIOSChromeColorNow, 600);
-}
 
 function rescale() {
   const canvas = document.getElementById("canvas");
