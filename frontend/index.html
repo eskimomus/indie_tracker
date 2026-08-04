@@ -2049,12 +2049,24 @@
        triggering iOS Safari's Compact/Bottom tab-bar chrome to sample (and
        then permanently cache, for the rest of the page's lifetime) this
        backdrop's own --panel-dark color the moment the drawer first opens.
-       +2px instead of -6px keeps a real, always-positive gap from the true
-       edge on every device, inset or not, so opening the drawer never
-       paints anything all the way out to the pixels Safari's chrome
-       apparently samples from. */
-    top: calc(var(--safe-top-design, 0px) + 2px);
-    bottom: calc(var(--safe-bottom-design, 0px) + 2px);
+       --edge-buffer-design (set in rescale(), alongside --safe-top/bottom-
+       design) is a real, on-screen pixel amount, not a flat guess at what
+       survives this element's own `zoom: mobileScale`.
+       Still - 6px past that buffer, same as the original (pre-safe-area)
+       -6px this rule always had: .filter-drawer-fill-mobile (no mask, a
+       flat rect) is deliberately painted on top of this layer specifically
+       to flatten its own wobbly/rounded mask edges — that only works if
+       this layer's *box* reaches 6px further than fill's box on every
+       side, since this mask's visible paint recedes back inward by
+       roughly that same ~6px at the rounded corners. Giving both layers
+       the exact same offset (tried right after introducing
+       --edge-buffer-design) removed that differential and made this
+       layer's now-more-recessed rounded corner visibly shorter than
+       fill's flat one — confirmed via the user's own on-device element
+       inspector, which pointed at .filter-drawer-fill-mobile as what was
+       poking out past this layer's edge. */
+    top: calc(var(--safe-top-design, 0px) + var(--edge-buffer-design, 16px) - 6px);
+    bottom: calc(var(--safe-bottom-design, 0px) + var(--edge-buffer-design, 16px) - 6px);
     left: -6px;
     width: 1252px; /* 1240 visible + 6px margin each side */
     background-color: var(--panel-dark);
@@ -2201,13 +2213,23 @@
     /* same --safe-top-design/--safe-bottom-design back-off as
        .filter-drawer-back-mobile above, and for the same reason — top
        shifts down by the top inset, height shrinks by both, so this
-       layer's own bottom edge stays put while its top backs off. Same +2px
-       real buffer as that layer too (was flush with 0px, no buffer at all,
-       on a device with no inset), so this one can't touch the true edge
-       either. */
-    top: calc(var(--safe-top-design, 0px) + 2px);
+       layer's own bottom edge stays put while its top backs off.
+       --edge-buffer-design (set in rescale()) is a real on-screen pixel
+       amount, computed the same way --safe-top/bottom-design already are
+       (a real px target, divided by mobileScale) — flat design-space
+       guesses were tried here first (+2px, then +16px) and both turned out
+       to still let this layer reach the true edge on a real device (+2px
+       confirmed via screenshot, +16px confirmed via the user's own
+       on-device element inspector), being only approximations of what
+       survives this element's own zoom instead of an exact figure. Height
+       drops by double the buffer (top *and* bottom) to match.
+       Deliberately no extra "- 6px" here the way .filter-drawer-back-mobile
+       has — this flat rect is the reference edge everything else (that
+       mask's own rounded corners) needs to stay safely inside of, not the
+       other way around; see that layer's own comment for the differential. */
+    top: calc(var(--safe-top-design, 0px) + var(--edge-buffer-design, 16px));
     width: 1515px;
-    height: calc(3468px - var(--safe-top-design, 0px) - var(--safe-bottom-design, 0px) - 4px);
+    height: calc(3468px - var(--safe-top-design, 0px) - var(--safe-bottom-design, 0px) - (var(--edge-buffer-design, 16px) * 2));
     background-color: var(--panel-dark);
     /* same counter-shift as .filter-drawer-back-mobile above, and for the
        same reason — this is the other of the "two backdrop layers" that
@@ -4396,6 +4418,22 @@ function rescale() {
   const insets = getSafeAreaInsets();
   filterDrawerEl.style.setProperty("--safe-top-design", (insets.top / mobileScale) + "px");
   filterDrawerEl.style.setProperty("--safe-bottom-design", (insets.bottom / mobileScale) + "px");
+  // Extra real-pixel buffer for .filter-drawer-back-mobile/.filter-drawer-
+  // fill-mobile, on top of the safe-area inset itself — see those rules'
+  // own comments for why they need one at all (keeping this backdrop off
+  // the true screen edge, not just off the inset). A flat design-space
+  // constant (+16px, tried first) turned out not to be enough — confirmed
+  // via the user's own on-device element inspector, .filter-drawer-fill-
+  // mobile was still reaching the true edge — most likely because it was
+  // still only an approximate guess at what survives this element's own
+  // zoom, the same class of error --safe-top-design/--safe-bottom-design
+  // themselves avoid by being computed from a real px target and *then*
+  // divided by mobileScale, not written as a flat guess. Same fix here:
+  // an actual real-px target (EDGE_BUFFER_REAL_PX), pre-divided the same
+  // way, so it comes out exactly right on screen regardless of device
+  // width instead of being re-approximated per element.
+  const EDGE_BUFFER_REAL_PX = 8;
+  filterDrawerEl.style.setProperty("--edge-buffer-design", (EDGE_BUFFER_REAL_PX / mobileScale) + "px");
 
   document.body.style.minHeight = Math.max(
     canvas.scrollHeight * scale,
