@@ -2043,10 +2043,18 @@
     /* --safe-top-design/--safe-bottom-design set in rescale() — backs this
        off from the notch/home-indicator/toolbar-overlap strips instead of
        painting dark all the way to the real screen edge there (see that
-       comment). Falls back to the original plain -6px when unset (e.g.
-       first paint before JS runs) or on a device with no inset. */
-    top: calc(var(--safe-top-design, 0px) - 6px);
-    bottom: calc(var(--safe-bottom-design, 0px) - 6px);
+       comment). On a device with no inset (--safe-top-design falls back to
+       0px), a plain -6px here still touched/overshot the true edge by 6px —
+       which, per the user's own on-device testing, is exactly what was
+       triggering iOS Safari's Compact/Bottom tab-bar chrome to sample (and
+       then permanently cache, for the rest of the page's lifetime) this
+       backdrop's own --panel-dark color the moment the drawer first opens.
+       +2px instead of -6px keeps a real, always-positive gap from the true
+       edge on every device, inset or not, so opening the drawer never
+       paints anything all the way out to the pixels Safari's chrome
+       apparently samples from. */
+    top: calc(var(--safe-top-design, 0px) + 2px);
+    bottom: calc(var(--safe-bottom-design, 0px) + 2px);
     left: -6px;
     width: 1252px; /* 1240 visible + 6px margin each side */
     background-color: var(--panel-dark);
@@ -2193,10 +2201,13 @@
     /* same --safe-top-design/--safe-bottom-design back-off as
        .filter-drawer-back-mobile above, and for the same reason — top
        shifts down by the top inset, height shrinks by both, so this
-       layer's own bottom edge stays put while its top backs off. */
-    top: var(--safe-top-design, 0px);
+       layer's own bottom edge stays put while its top backs off. Same +2px
+       real buffer as that layer too (was flush with 0px, no buffer at all,
+       on a device with no inset), so this one can't touch the true edge
+       either. */
+    top: calc(var(--safe-top-design, 0px) + 2px);
     width: 1515px;
-    height: calc(3468px - var(--safe-top-design, 0px) - var(--safe-bottom-design, 0px));
+    height: calc(3468px - var(--safe-top-design, 0px) - var(--safe-bottom-design, 0px) - 4px);
     background-color: var(--panel-dark);
     /* same counter-shift as .filter-drawer-back-mobile above, and for the
        same reason — this is the other of the "two backdrop layers" that
