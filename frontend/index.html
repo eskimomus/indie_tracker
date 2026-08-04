@@ -2201,13 +2201,22 @@
     /* same --safe-top-design/--safe-bottom-design back-off as
        .filter-drawer-back-mobile above, and for the same reason — top
        shifts down by the top inset, height shrinks by both, so this
-       layer's own bottom edge stays put while its top backs off. Same +2px
-       real buffer as that layer too (was flush with 0px, no buffer at all,
-       on a device with no inset), so this one can't touch the true edge
-       either. */
-    top: calc(var(--safe-top-design, 0px) + 2px);
+       layer's own bottom edge stays put while its top backs off.
+       +16px here, not +2px like that layer — this element (and its parent
+       #filterDrawerMobile) carries its own `zoom: mobileScale` (~0.2-0.3 on
+       a real phone; see rescale()), so a design-space buffer only survives
+       on screen at roughly that fraction of its own px value. +2px was
+       already confirmed working on .filter-drawer-back-mobile, but per the
+       user's own on-device testing it was NOT enough here — the difference
+       being that layer's soft, alpha-faded PNG mask edge (see its own
+       "6px margin" bleed) already put a few real pixels between its fully-
+       opaque paint and the true edge on its own, independent of this calc,
+       while this is a plain, hard-edged rect with nothing else backing
+       that gap up. +16px (~3-5 real px after zoom on a typical phone
+       width) is comfortably past sub-pixel rounding on its own. */
+    top: calc(var(--safe-top-design, 0px) + 16px);
     width: 1515px;
-    height: calc(3468px - var(--safe-top-design, 0px) - var(--safe-bottom-design, 0px) - 4px);
+    height: calc(3468px - var(--safe-top-design, 0px) - var(--safe-bottom-design, 0px) - 32px);
     background-color: var(--panel-dark);
     /* same counter-shift as .filter-drawer-back-mobile above, and for the
        same reason — this is the other of the "two backdrop layers" that
