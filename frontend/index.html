@@ -3173,6 +3173,37 @@ function toggleFavorite(gameId) {
   }
 }
 
+// On a real device, #safeAreaTopMask/#safeAreaBottomMask's CSS
+// background-color: var(--badge-rank)/var(--panel-dark) (see <style>) does
+// NOT visibly follow html.favorites-theme, even though every other themed
+// element on the page — driven by the exact same class toggle — updates
+// correctly. The working theory: these two are position:fixed with a
+// z-index far above everything else in the file specifically so nothing
+// can ever paint over them, which on iOS commonly promotes an element to
+// its own GPU-composited layer (to keep it pinned through rubber-band
+// scroll) — and a layer like that can end up not repainting when only an
+// *inherited* custom property changes upstream, with no direct style
+// mutation on the element itself to invalidate it. Setting
+// backgroundColor directly here, on every theme toggle, sidesteps that
+// entirely: it's a mutation WebKit can't fail to notice on the exact
+// element carrying it, whatever's actually true about the var-cascade
+// route. The CSS rule stays in <style> too, as the baseline for the very
+// first paint (before any of this JS has run) and as a fallback for
+// anything this call site might miss.
+const SAFE_AREA_TOP_COLOR = { default: "#657D51", favorites: "#875658" };
+const SAFE_AREA_BOTTOM_COLOR = { default: "#1C2C21", favorites: "#2C1C1C" };
+function setSafeAreaMaskColors(favorites) {
+  const topMask = document.getElementById("safeAreaTopMask");
+  const bottomMask = document.getElementById("safeAreaBottomMask");
+  topMask.style.backgroundColor = favorites ? SAFE_AREA_TOP_COLOR.favorites : SAFE_AREA_TOP_COLOR.default;
+  bottomMask.style.backgroundColor = favorites ? SAFE_AREA_BOTTOM_COLOR.favorites : SAFE_AREA_BOTTOM_COLOR.default;
+}
+// Applied once up front too — showingFavoritesOnly starts false, so this
+// just pins the initial (default-theme) color as an explicit inline style
+// from the very first script execution, matching the "already correct on
+// first visit" requirement without waiting for a first toggle to ever happen.
+setSafeAreaMaskColors(false);
+
 const headerFav = document.getElementById("headerFav");
 const headerFavMobile = document.getElementById("headerFavMobile");
 
@@ -3197,6 +3228,7 @@ function toggleFavoritesView() {
   document.body.classList.toggle("favorites-theme", showingFavoritesOnly);
   // page title stays "eskimo's indie tracker" in both states, per the
   // user's call — only the palette (favorites-theme) changes.
+  setSafeAreaMaskColors(showingFavoritesOnly);
   render(true);
 }
 headerFav.addEventListener("click", toggleFavoritesView);
