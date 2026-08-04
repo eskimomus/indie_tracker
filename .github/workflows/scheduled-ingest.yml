@@ -1,0 +1,21 @@
+name: Scheduled ingestion
+
+# Free-tier hosting spins the app down after a period without requests, which
+# kills the in-process APScheduler job in backend/scheduler.py along with it —
+# there's no way for a timer living only in that process's memory to survive
+# past the process itself. Triggering /api/ingest/run-now from here instead
+# doesn't depend on the app already being awake: this request is what wakes
+# it (see the generous retry/timeout below for that cold start).
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger-ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake site and trigger ingestion
+        run: |
+          curl -sS --retry 5 --retry-delay 20 --retry-all-errors --max-time 90 \
+            -X POST https://indietracker.site/api/ingest/run-now
