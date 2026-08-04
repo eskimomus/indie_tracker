@@ -407,6 +407,49 @@
     background: linear-gradient(to right, transparent 0%, #000000 100%);
   }
 
+  /* Cover for the iOS safe-area strips (status bar under viewport-fit=cover,
+     and the equivalent bottom inset) — an unstyled strip there falls
+     through to Safari's own default fill, which doesn't belong to this
+     site's palette at all. Rather than trying to keep this transparent and
+     let real page content show through (tried; still visibly wrong on
+     mobile Safari — see the two commits before this one), these are
+     painted a flat, deliberately-chosen color per the user's spec: on
+     <html> via var(), not hardcoded, so favorites-theme recolors them the
+     same way it recolors everything else, automatically, the moment the
+     class toggles — no separate JS step, since these are plain CSS custom
+     properties, not Safari's own native chrome (that's a different, harder
+     problem this isn't attempting to solve). --badge-rank/--panel-dark
+     specifically because the user's spec values (657D51/1C2C21 default,
+     875658/2C1C1C favorites) are exactly those two vars' existing values in
+     both themes — reusing them keeps this in sync with the rest of the
+     palette for free instead of duplicating the same four hex codes into
+     new vars. Present in the initial markup (not injected by JS) and
+     opaque with no transition, so the very first paint already has the
+     right color, before any script runs, matching the "no transparent
+     safe zone, ever, including on first load" part of the spec. z-index
+     above literally everything else in the file, so nothing (the drawer's
+     backdrop, a dropdown, the description panel) can ever paint over and
+     visually replace this color with its own. env()'s own fallback (0px)
+     makes both zero-height (nothing renders) on any device/browser without
+     a safe-area inset, desktop included. */
+  #safeAreaTopMask, #safeAreaBottomMask {
+    position: fixed;
+    left: 0;
+    width: 100%;
+    z-index: 999999;
+    pointer-events: none;
+  }
+  #safeAreaTopMask {
+    top: 0;
+    height: env(safe-area-inset-top, 0px);
+    background-color: var(--badge-rank);
+  }
+  #safeAreaBottomMask {
+    bottom: 0;
+    height: env(safe-area-inset-bottom, 0px);
+    background-color: var(--panel-dark);
+  }
+
   .page {
     /* 1291, matching #toolbarWrap exactly (was 1293) — both are centered
        independently within #canvas via margin:0 auto, so mismatched
@@ -2345,6 +2388,9 @@
 
 <div class="page-vignette page-vignette-left"></div>
 <div class="page-vignette page-vignette-right"></div>
+
+<div id="safeAreaTopMask"></div>
+<div id="safeAreaBottomMask"></div>
 
 <div id="canvas">
   <script>
