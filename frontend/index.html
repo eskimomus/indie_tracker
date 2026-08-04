@@ -407,47 +407,6 @@
     background: linear-gradient(to right, transparent 0%, #000000 100%);
   }
 
-  /* Unconditional cover for the iOS safe-area strips (status bar under
-     viewport-fit=cover, and whatever of the bottom inset is genuine page
-     content rather than Safari's own separate toolbar chrome) — per user
-     request, these must NEVER show any theme- or drawer-dependent color,
-     under any app state, rather than trying to keep some other layer's
-     color in sync with the current theme (the previous approach: backing
-     the drawer's own backdrop off via env() insets, plus a scroll nudge
-     to prompt iOS to re-sample theme-color — both still in place as
-     defense in depth, but neither is a *guarantee*, since both depend on
-     an inset calculation or an OS re-sample actually happening/being
-     correct). A plain, static background-color, painted above literally
-     everything else (z-index higher than anything else in this file) and
-     sized directly from env() with no zoom involved at all (these are
-     plain top-level fixed elements, not descendants of #canvas/
-     #canvasMobile, so there's no "declared length on a zoomed element"
-     correction needed) is instead simply always true by construction:
-     nothing else can ever paint above it, and its own color never
-     changes with anything, so there's nothing left *to* recolor.
-     Hardcoded to the default (non-favorites) --bg-base value rather than
-     a var(), specifically so it does NOT follow html.favorites-theme —
-     the whole point is this never changes, in either direction.
-     env()'s own fallback (0px) makes both of these zero-height (so
-     nothing renders) on any device/browser without a safe-area-inset,
-     desktop included, without needing a separate media query. */
-  #safeAreaTopMask, #safeAreaBottomMask {
-    position: fixed;
-    left: 0;
-    width: 100%;
-    background-color: #455934;
-    z-index: 999999;
-    pointer-events: none;
-  }
-  #safeAreaTopMask {
-    top: 0;
-    height: env(safe-area-inset-top, 0px);
-  }
-  #safeAreaBottomMask {
-    bottom: 0;
-    height: env(safe-area-inset-bottom, 0px);
-  }
-
   .page {
     /* 1291, matching #toolbarWrap exactly (was 1293) — both are centered
        independently within #canvas via margin:0 auto, so mismatched
@@ -2387,9 +2346,6 @@
 <div class="page-vignette page-vignette-left"></div>
 <div class="page-vignette page-vignette-right"></div>
 
-<div id="safeAreaTopMask"></div>
-<div id="safeAreaBottomMask"></div>
-
 <div id="canvas">
   <script>
     (function() {
@@ -3195,12 +3151,6 @@ function toggleFavoritesView() {
   document.body.classList.toggle("favorites-theme", showingFavoritesOnly);
   // page title stays "eskimo's indie tracker" in both states, per the
   // user's call — only the palette (favorites-theme) changes.
-  // themeColorMeta deliberately does NOT follow favorites-theme (see
-  // #safeAreaTopMask/#safeAreaBottomMask in <style>) — per user request,
-  // the safe-area strips those (and Safari's own address-bar tinting)
-  // feed from must never recolor with anything on the page, so this meta
-  // tag just stays at its one fixed value always instead of chasing the
-  // current theme.
   render(true);
 }
 headerFav.addEventListener("click", toggleFavoritesView);
