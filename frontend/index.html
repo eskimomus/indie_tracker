@@ -2211,9 +2211,7 @@
     position: absolute;
     left: -300px;
     /* same --safe-top-design/--safe-bottom-design back-off as
-       .filter-drawer-back-mobile above, and for the same reason — top
-       shifts down by the top inset, height shrinks by both, so this
-       layer's own bottom edge stays put while its top backs off.
+       .filter-drawer-back-mobile above, and for the same reason.
        --edge-buffer-design (set in rescale()) is a real on-screen pixel
        amount, computed the same way --safe-top/bottom-design already are
        (a real px target, divided by mobileScale) — flat design-space
@@ -2221,15 +2219,28 @@
        to still let this layer reach the true edge on a real device (+2px
        confirmed via screenshot, +16px confirmed via the user's own
        on-device element inspector), being only approximations of what
-       survives this element's own zoom instead of an exact figure. Height
-       drops by double the buffer (top *and* bottom) to match.
+       survives this element's own zoom instead of an exact figure.
        Deliberately no extra "- 6px" here the way .filter-drawer-back-mobile
        has — this flat rect is the reference edge everything else (that
        mask's own rounded corners) needs to stay safely inside of, not the
-       other way around; see that layer's own comment for the differential. */
+       other way around; see that layer's own comment for the differential.
+       Used to be top + a height computed from a literal "3468px" (a
+       deliberate overshoot, like the -300px on the left, meant to
+       guarantee this layer reaches the real bottom on any device without
+       needing to know its exact height) — but that same overshoot is
+       exactly why the buffer subtracted from it never produced a visible
+       gap at the bottom on a real device (confirmed via the user's own
+       on-device element inspector, again pointing at this layer): the
+       computed height still landed comfortably past the true bottom edge
+       regardless of how much got subtracted, since 3468 was already
+       larger than any real viewport to begin with. bottom, a solved
+       constraint against the container's actual edge exactly like
+       .filter-drawer-back-mobile's own bottom, doesn't have that problem —
+       it's exact by construction on any device, no guessed constant
+       involved. */
     top: calc(var(--safe-top-design, 0px) + var(--edge-buffer-design, 16px));
+    bottom: calc(var(--safe-bottom-design, 0px) + var(--edge-buffer-design, 16px));
     width: 1515px;
-    height: calc(3468px - var(--safe-top-design, 0px) - var(--safe-bottom-design, 0px) - (var(--edge-buffer-design, 16px) * 2));
     background-color: var(--panel-dark);
     /* same counter-shift as .filter-drawer-back-mobile above, and for the
        same reason — this is the other of the "two backdrop layers" that
