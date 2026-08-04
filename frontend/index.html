@@ -2012,7 +2012,16 @@
        the flag icon itself sits) remains on-screen. */
     left: -1243px;
     width: 1376px;
-    z-index: 50;
+    /* Was 50 — dropped to 21 (still above every piece of row/header content
+       in this file, none of which goes past 20) as a last experiment for
+       the top safe-area strip still recoloring in Safari's own native
+       chrome during open/close, confirmed via two separate on-device
+       measurements to NOT be caused by anything this file paints actually
+       touching the true top edge (see the investigation in git history).
+       Long shot — testing whether a lower z-index changes whatever
+       heuristic Safari uses to decide "something new appeared near the
+       top, time to resample". */
+    z-index: 21;
     /* raises the whole drawer (backdrop + tab + all filter content) 270px
        per user request — a static transform rather than renumbering every
        child's own top, and translateY isn't re-scaled by this element's
