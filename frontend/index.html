@@ -3173,23 +3173,28 @@ function toggleFavorite(gameId) {
   }
 }
 
-// On a real device, #safeAreaTopMask/#safeAreaBottomMask's CSS
-// background-color: var(--badge-rank)/var(--panel-dark) (see <style>) does
-// NOT visibly follow html.favorites-theme, even though every other themed
-// element on the page — driven by the exact same class toggle — updates
-// correctly. The working theory: these two are position:fixed with a
-// z-index far above everything else in the file specifically so nothing
-// can ever paint over them, which on iOS commonly promotes an element to
-// its own GPU-composited layer (to keep it pinned through rubber-band
-// scroll) — and a layer like that can end up not repainting when only an
-// *inherited* custom property changes upstream, with no direct style
-// mutation on the element itself to invalidate it. Setting
-// backgroundColor directly here, on every theme toggle, sidesteps that
-// entirely: it's a mutation WebKit can't fail to notice on the exact
-// element carrying it, whatever's actually true about the var-cascade
-// route. The CSS rule stays in <style> too, as the baseline for the very
-// first paint (before any of this JS has run) and as a fallback for
-// anything this call site might miss.
+// Neither plain CSS (background-color: var(--badge-rank)/var(--panel-dark))
+// nor setting backgroundColor directly in JS made #safeAreaTopMask/
+// #safeAreaBottomMask visibly retint on a real device — in both cases the
+// *element* was verifiably the right color (confirmed via computed style),
+// so the element itself was never the problem. What the user's own
+// on-device testing showed instead: neither strip renders anything at all
+// on first load; both first pick up a color only once something like the
+// filter drawer opens (some real, visible layout event); and once picked
+// up, that color is stuck until the next full reload, never following any
+// later favorites-theme toggle. That's the signature of iOS Safari
+// sampling the actual pixels at the top/bottom edge of the viewport once,
+// to tint its own native status-bar/toolbar chrome, then caching that
+// sample rather than re-reading it on every repaint — a documented-ish
+// Safari quirk, and the same one the removed nudgeIOSChromeColor()
+// (5844995) used to work around, just aimed at a different goal back then
+// (keeping the strips frozen, not tracking them). Our own element's color
+// was always correct at every moment; Safari just wasn't looking at it
+// again after its first sample. Re-triggering that sample explicitly,
+// right after setting the "true" color, is the fix — nudgeIOSChromeColor
+// below does that with the standard 1px-scroll-and-back trick, both once
+// on load (rather than waiting on the user to open the drawer) and on
+// every subsequent favorites-theme toggle.
 const SAFE_AREA_TOP_COLOR = { default: "#657D51", favorites: "#875658" };
 const SAFE_AREA_BOTTOM_COLOR = { default: "#1C2C21", favorites: "#2C1C1C" };
 function setSafeAreaMaskColors(favorites) {
@@ -3198,11 +3203,48 @@ function setSafeAreaMaskColors(favorites) {
   topMask.style.backgroundColor = favorites ? SAFE_AREA_TOP_COLOR.favorites : SAFE_AREA_TOP_COLOR.default;
   bottomMask.style.backgroundColor = favorites ? SAFE_AREA_BOTTOM_COLOR.favorites : SAFE_AREA_BOTTOM_COLOR.default;
 }
+
+// Nudges scrollY by 1px and immediately back — imperceptible to the user,
+// but enough of a real scroll event to make iOS Safari re-sample whatever
+// color it tints its own chrome with, instead of holding on to whatever it
+// last sampled. See the big comment above for why this is needed at all.
+function nudgeIOSChromeColorNow() {
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  if (maxScroll <= 0) {
+    // Nothing to scroll (e.g. a short/empty page) — borrow 2px of scroll
+    // room from body's own min-height just long enough for one real
+    // scroll-and-back, then hand it straight back.
+    const prevMinHeight = document.body.style.minHeight;
+    document.body.style.minHeight = (window.innerHeight + 2) + "px";
+    window.scrollTo(0, 1);
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+      document.body.style.minHeight = prevMinHeight;
+    });
+    return;
+  }
+  // Relative, not remembered-absolute-then-restore: self-canceling by
+  // construction regardless of anything else nudging scrollY in between.
+  window.scrollBy(0, 1);
+  requestAnimationFrame(() => window.scrollBy(0, -1));
+}
+// Callers (favorites toggle) trigger a render() fade that hasn't actually
+// settled into its final layout yet — nudging immediately would measure
+// scroll room against the *outgoing* page, not the one about to be shown.
+// 600ms comfortably outlasts the fade-out+fade-in pair (250ms each).
+function nudgeIOSChromeColor() {
+  setTimeout(nudgeIOSChromeColorNow, 600);
+}
+
 // Applied once up front too — showingFavoritesOnly starts false, so this
 // just pins the initial (default-theme) color as an explicit inline style
 // from the very first script execution, matching the "already correct on
 // first visit" requirement without waiting for a first toggle to ever happen.
 setSafeAreaMaskColors(false);
+// 2500ms clears the preloader's own 1000ms hold plus its slide-down
+// transition (see the "Preloader" setTimeout further down), so this fires
+// against the page's actual settled layout instead of racing it.
+setTimeout(nudgeIOSChromeColorNow, 2500);
 
 const headerFav = document.getElementById("headerFav");
 const headerFavMobile = document.getElementById("headerFavMobile");
@@ -3229,6 +3271,7 @@ function toggleFavoritesView() {
   // page title stays "eskimo's indie tracker" in both states, per the
   // user's call — only the palette (favorites-theme) changes.
   setSafeAreaMaskColors(showingFavoritesOnly);
+  nudgeIOSChromeColor();
   render(true);
 }
 headerFav.addEventListener("click", toggleFavoritesView);
