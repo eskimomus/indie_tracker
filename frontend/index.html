@@ -55,6 +55,11 @@
     --panel-dark: #1C2C21;
     --pill-dim: #3C4732;
     --pill-bright: #455339;
+    /* hovering the sort icon while it's already the active one — separate
+       from --pill-bright (the plain active color) since the user wants a
+       distinct, deliberately-picked shade here, not just a reuse of an
+       existing var that happened to be close. */
+    --sort-icon-active-hover: #697F57;
 
     --badge-rank: #657D51;
     --more-bg: #657D51;
@@ -115,6 +120,7 @@
     --panel-dark: #2C1C1C;
     --pill-dim: #653D40;
     --pill-bright: #77494B;
+    --sort-icon-active-hover: #77494B;
 
     --badge-rank: #875658;
     --more-bg: #875658;
@@ -815,6 +821,29 @@
   }
   .pill-arrow.active .arrow-icon {
     background-color: var(--pill-bright);
+  }
+  /* Per the user's request: hovering the button recolors the icon itself
+     (not its #udArrowBg/#mvArrowBg backdrop) to the same --text-hover
+     already used for #udTitle/#mvTitle/#contactsTitle's own span on hover
+     — same variable, so this tracks favorites-theme automatically exactly
+     like those do. :not(.active) so the rule below (hovering the button
+     that's *already* the active sort) gets a clean, unambiguous shot at
+     that case instead of the two competing on specificity. */
+  .pill-arrow:hover:not(.active) .arrow-icon {
+    background-color: var(--text-hover);
+  }
+  /* Hovering the *active* button specifically — the user's follow-up
+     after first trying "no change at all" here, then landing on a third,
+     deliberately distinct color rather than reusing --text-hover or
+     --pill-bright. --sort-icon-active-hover (own var, see :root/
+     html.favorites-theme) since neither existing var was the color
+     actually wanted (its favorites-theme value, #77494B, does happen to
+     equal --pill-bright there — the user's own choice, not a bug — so in
+     practice this state reads as "unchanged" in favorites but not in the
+     default theme). Four classes vs. .pill-arrow.active .arrow-icon's
+     three is what makes this win when both apply. */
+  .pill-arrow.active:hover .arrow-icon {
+    background-color: var(--sort-icon-active-hover);
   }
   #udArrow {
     left: 314px;
