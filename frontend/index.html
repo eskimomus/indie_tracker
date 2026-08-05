@@ -764,15 +764,58 @@
     -webkit-user-select: none;
     user-select: none;
     background-color: var(--pill-bright);
+    transition: background-color 0.2s ease;
   }
+  /* Icon, direction flip, and active/inactive coloring all ported from
+     .filter-sort-icon-mobile/.filter-sort-icon-bars-mobile below, per the
+     user's request that desktop's sort buttons match mobile's exactly
+     instead of having their own separate look (a rotating custom SVG
+     arrow with no active/inactive distinction at all — you could tell
+     asc from desc but not which field was actually driving the sort).
+     32×32.73 — the user's own explicit size (design px, 1920-wide scale,
+     pre-zoom) — happens to preserve filter-sort-icon.png's native 94:96
+     aspect ratio almost exactly (94/96 = 0.9792 vs 32/32.73 = 0.9777),
+     just at a size that fits this button instead of mobile's much larger
+     icon-bg square. mask-size/repeat declared directly here rather than
+     folding .arrow-icon into the big shared mask-size:100% 100% selector
+     list up top, since every other member of that list is *-mobile. */
   .pill-arrow .arrow-icon {
     display: block;
-    width: 25px;
-    height: 14px;
-    transform: rotate(0deg);
-    transition: transform 0.35s ease;
+    width: 32px;
+    height: 32.73px;
+    background-color: var(--text);
+    -webkit-mask-image: url(assets/masks/filter-sort-icon.png);
+    mask-image: url(assets/masks/filter-sort-icon.png);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    transition: transform 0.35s ease, background-color 0.2s ease;
   }
-  .pill-arrow.dir-desc .arrow-icon { transform: rotate(180deg); }
+  /* Same asset as mobile, so the same flip-not-rotate direction convention
+     — see .filter-sort-icon-mobile.dir-asc for why it's dir-asc (mirror)
+     instead of desktop's old dir-desc (rotate). */
+  .pill-arrow.dir-asc .arrow-icon { transform: scaleX(-1); }
+  /* active: this button's own field (date/views) is the one currently
+     driving the list's sort — see updateSortArrows(). Inverts the
+     wobbly-masked #udArrowBg/#mvArrowBg background (the only one of
+     .pill-arrow's two background layers that's ever actually visible —
+     #udArrow/#mvArrow's own flat background is separately reset to
+     transparent by their own ID rule below, always, active or not) plus
+     the icon, exactly mirroring .filter-title-icon-bg-mobile.active/
+     .filter-sort-icon-bars-mobile.active's pairing.
+     #udArrow.active #udArrowBg (not the plain-class .pill-arrow.active
+     .pill-bg tried first) specifically because #udArrowBg/#mvArrowBg's
+     own ID rule (background-color: var(--pill-bright)) otherwise always
+     wins on specificity over any class-only override, confirmed via
+     computed style on-device — an ID in the selector is the only way to
+     out-specificity another ID. */
+  #udArrow.active #udArrowBg, #mvArrow.active #mvArrowBg {
+    background-color: var(--text);
+  }
+  .pill-arrow.active .arrow-icon {
+    background-color: var(--pill-bright);
+  }
   #udArrow {
     left: 314px;
     width: 67px;
@@ -2544,18 +2587,14 @@
       <div class="pill-title" id="udTitle" data-action="toggle-period"><div class="pill-bg" id="udTitleBg"></div><span>upload date</span></div>
       <div class="pill-arrow" id="udArrow" data-action="sort-date">
         <div class="pill-bg" id="udArrowBg"></div>
-        <svg class="arrow-icon" viewBox="0 0 25 14" xmlns="http://www.w3.org/2000/svg">
-          <path d="M13.55 0.349997C13.7833 0.48333 14.0167 0.63333 14.25 0.799997C14.45 0.93333 14.6833 1.08333 14.95 1.25C15.7167 1.61666 16.35 2.11666 16.85 2.75C17.15 3.08333 17.45 3.38333 17.75 3.65C18.05 3.91666 18.4 4.13333 18.8 4.3C19.3333 4.76666 19.8833 5.23333 20.45 5.7C21.0167 6.13333 21.5833 6.58333 22.15 7.05C22.35 7.21666 22.5333 7.4 22.7 7.6C22.8667 7.76666 23.0667 7.91666 23.3 8.05C23.4333 8.08333 23.5667 8.2 23.7 8.4C23.9 8.63333 24.1 8.85 24.3 9.05C24.4667 9.25 24.65 9.46666 24.85 9.7C24.8167 9.76666 24.7833 9.85 24.75 9.95C24.7167 10.05 24.6667 10.1333 24.6 10.2C24.4667 10.3667 24.3333 10.5333 24.2 10.7C24.0333 10.8667 23.8833 11.05 23.75 11.25C23.5833 11.55 23.4 11.8167 23.2 12.05C22.9667 12.25 22.7333 12.4333 22.5 12.6C22.3333 12.7333 22.15 12.8667 21.95 13C21.75 13.1 21.55 13.2333 21.35 13.4C21.1167 13.3333 20.8833 13.2667 20.65 13.2C20.3833 13.1 20.1333 13.0333 19.9 13C19.6333 12.6333 19.35 12.3 19.05 12C18.7167 11.6667 18.3833 11.3833 18.05 11.15C17.95 10.95 17.85 10.7667 17.75 10.6C17.65 10.4 17.5667 10.2 17.5 10C17.3333 9.86666 17.1667 9.75 17 9.65C16.8333 9.51666 16.6667 9.36666 16.5 9.2C16.3667 9.03333 16.2333 8.86666 16.1 8.7C15.9333 8.53333 15.7833 8.36666 15.65 8.2C15.3833 8.03333 15.1333 7.9 14.9 7.8C14.6333 7.66666 14.3833 7.53333 14.15 7.4C13.8833 7.23333 13.65 7.06666 13.45 6.9C13.25 6.7 12.9833 6.53333 12.65 6.4C12.1167 6.5 11.5667 6.75 11 7.15C10.3333 7.58333 9.68333 8.03333 9.05 8.5C8.38333 8.93333 7.75 9.41666 7.15 9.95C6.78333 10.25 6.4 10.5333 6 10.8C5.6 11.0333 5.21667 11.2833 4.85 11.55C4.55 11.75 4.25 11.95 3.95 12.15C3.65 12.3167 3.36667 12.4833 3.1 12.65C2.76667 12.7167 2.46667 12.6167 2.2 12.35C2.13333 12.25 2.06667 12.1667 2 12.1C1.93333 12.0333 1.88333 11.9667 1.85 11.9C1.65 11.6333 1.46667 11.3667 1.3 11.1C1.1 10.8333 0.883334 10.5667 0.65 10.3C0.55 10.0333 0.449999 9.73333 0.35 9.4C0.25 9.06666 0.133333 8.75 -2.57459e-07 8.45C0.0666665 8.18333 0.2 8.03333 0.399999 8C0.566667 7.93333 0.733334 7.88333 0.9 7.85C0.966667 7.68333 1.05 7.51666 1.15 7.35C1.21667 7.15 1.31667 6.96666 1.45 6.8C1.68333 6.53333 1.95 6.26666 2.25 6C2.55 5.7 2.86667 5.38333 3.2 5.05C3.63333 4.88333 4.08333 4.7 4.55 4.5C4.98333 4.3 5.45 4.15 5.95 4.05C6.28333 3.81666 6.58333 3.56666 6.85 3.3C7.08333 3.03333 7.33333 2.73333 7.6 2.4C7.73333 2.3 7.9 2.21666 8.1 2.15C8.26667 2.08333 8.43333 2 8.6 1.9C8.93333 1.6 9.31667 1.36666 9.75 1.2C10.15 0.999997 10.55 0.799997 10.95 0.599996C11.75 0.199997 12.6167 0.116663 13.55 0.349997Z" fill="currentColor"/>
-        </svg>
+        <div class="arrow-icon"></div>
       </div>
 
       <div class="pill-strip" id="mvStrip"><div class="pill-bg" id="mvStripBg"></div></div>
       <div class="pill-title" id="mvTitle" data-action="toggle-metric"><div class="pill-bg" id="mvTitleBg"></div><span>max. views</span></div>
       <div class="pill-arrow" id="mvArrow" data-action="sort-views">
         <div class="pill-bg" id="mvArrowBg"></div>
-        <svg class="arrow-icon" viewBox="0 0 25 14" xmlns="http://www.w3.org/2000/svg">
-          <path d="M13.55 0.349997C13.7833 0.48333 14.0167 0.63333 14.25 0.799997C14.45 0.93333 14.6833 1.08333 14.95 1.25C15.7167 1.61666 16.35 2.11666 16.85 2.75C17.15 3.08333 17.45 3.38333 17.75 3.65C18.05 3.91666 18.4 4.13333 18.8 4.3C19.3333 4.76666 19.8833 5.23333 20.45 5.7C21.0167 6.13333 21.5833 6.58333 22.15 7.05C22.35 7.21666 22.5333 7.4 22.7 7.6C22.8667 7.76666 23.0667 7.91666 23.3 8.05C23.4333 8.08333 23.5667 8.2 23.7 8.4C23.9 8.63333 24.1 8.85 24.3 9.05C24.4667 9.25 24.65 9.46666 24.85 9.7C24.8167 9.76666 24.7833 9.85 24.75 9.95C24.7167 10.05 24.6667 10.1333 24.6 10.2C24.4667 10.3667 24.3333 10.5333 24.2 10.7C24.0333 10.8667 23.8833 11.05 23.75 11.25C23.5833 11.55 23.4 11.8167 23.2 12.05C22.9667 12.25 22.7333 12.4333 22.5 12.6C22.3333 12.7333 22.15 12.8667 21.95 13C21.75 13.1 21.55 13.2333 21.35 13.4C21.1167 13.3333 20.8833 13.2667 20.65 13.2C20.3833 13.1 20.1333 13.0333 19.9 13C19.6333 12.6333 19.35 12.3 19.05 12C18.7167 11.6667 18.3833 11.3833 18.05 11.15C17.95 10.95 17.85 10.7667 17.75 10.6C17.65 10.4 17.5667 10.2 17.5 10C17.3333 9.86666 17.1667 9.75 17 9.65C16.8333 9.51666 16.6667 9.36666 16.5 9.2C16.3667 9.03333 16.2333 8.86666 16.1 8.7C15.9333 8.53333 15.7833 8.36666 15.65 8.2C15.3833 8.03333 15.1333 7.9 14.9 7.8C14.6333 7.66666 14.3833 7.53333 14.15 7.4C13.8833 7.23333 13.65 7.06666 13.45 6.9C13.25 6.7 12.9833 6.53333 12.65 6.4C12.1167 6.5 11.5667 6.75 11 7.15C10.3333 7.58333 9.68333 8.03333 9.05 8.5C8.38333 8.93333 7.75 9.41666 7.15 9.95C6.78333 10.25 6.4 10.5333 6 10.8C5.6 11.0333 5.21667 11.2833 4.85 11.55C4.55 11.75 4.25 11.95 3.95 12.15C3.65 12.3167 3.36667 12.4833 3.1 12.65C2.76667 12.7167 2.46667 12.6167 2.2 12.35C2.13333 12.25 2.06667 12.1667 2 12.1C1.93333 12.0333 1.88333 11.9667 1.85 11.9C1.65 11.6333 1.46667 11.3667 1.3 11.1C1.1 10.8333 0.883334 10.5667 0.65 10.3C0.55 10.0333 0.449999 9.73333 0.35 9.4C0.25 9.06666 0.133333 8.75 -2.57459e-07 8.45C0.0666665 8.18333 0.2 8.03333 0.399999 8C0.566667 7.93333 0.733334 7.88333 0.9 7.85C0.966667 7.68333 1.05 7.51666 1.15 7.35C1.21667 7.15 1.31667 6.96666 1.45 6.8C1.68333 6.53333 1.95 6.26666 2.25 6C2.55 5.7 2.86667 5.38333 3.2 5.05C3.63333 4.88333 4.08333 4.7 4.55 4.5C4.98333 4.3 5.45 4.15 5.95 4.05C6.28333 3.81666 6.58333 3.56666 6.85 3.3C7.08333 3.03333 7.33333 2.73333 7.6 2.4C7.73333 2.3 7.9 2.21666 8.1 2.15C8.26667 2.08333 8.43333 2 8.6 1.9C8.93333 1.6 9.31667 1.36666 9.75 1.2C10.15 0.999997 10.55 0.799997 10.95 0.599996C11.75 0.199997 12.6167 0.116663 13.55 0.349997Z" fill="currentColor"/>
-        </svg>
+        <div class="arrow-icon"></div>
       </div>
 
       <div id="contactsTitle" data-action="toggle-contacts">
@@ -3230,20 +3269,26 @@ document.addEventListener("click", (e) => {
 function updateSortArrows() {
   const dateArrow = document.getElementById("udArrow");
   const viewsArrow = document.getElementById("mvArrow");
-  dateArrow.classList.toggle("dir-desc", sortField === "date" && sortDirection === "desc");
-  viewsArrow.classList.toggle("dir-desc", sortField === "views" && sortDirection === "desc");
-  /* mobile's bar icon defaults to its "max to min" look (tall-to-short,
-     see .filter-sort-icon-mobile in <style>) and only flips for ascending
-     — opposite condition from the desktop arrow's dir-desc, since the two
-     icons' neutral/default orientations mean opposite things. */
+  // active: this control is the one currently driving the list's order
+  // (regardless of asc/desc) — inverts background/icon colors (see
+  // .pill-arrow.active / .filter-title-icon-bg-mobile.active /
+  // .filter-sort-icon-bars-mobile.active). Declared before the dir-asc
+  // toggles below only because both desktop and mobile now read it.
+  const udSortActive = sortField === "date";
+  const mvSortActive = sortField === "views";
+  // Desktop now uses the exact same icon asset and flip-not-rotate
+  // direction convention as mobile (dir-asc mirrors the icon; see
+  // .filter-sort-icon-mobile.dir-asc and .pill-arrow.dir-asc) instead of
+  // its own former dir-desc/rotate(180deg) — same condition as mobile's
+  // own toggle below, not the old desktop-specific one.
+  dateArrow.classList.toggle("dir-asc", sortField === "date" && sortDirection === "asc");
+  viewsArrow.classList.toggle("dir-asc", sortField === "views" && sortDirection === "asc");
+  dateArrow.classList.toggle("active", udSortActive);
+  viewsArrow.classList.toggle("active", mvSortActive);
+
   document.getElementById("filterSortUpload").classList.toggle("dir-asc", sortField === "date" && sortDirection === "asc");
   document.getElementById("filterSortViews").classList.toggle("dir-asc", sortField === "views" && sortDirection === "asc");
 
-  // active: this section's sort control is the one currently driving the
-  // list's order (regardless of asc/desc) — inverts icon-bg/icon colors
-  // (see .filter-title-icon-bg-mobile.active / .filter-sort-icon-bars-mobile.active)
-  const udSortActive = sortField === "date";
-  const mvSortActive = sortField === "views";
   document.querySelector("#filterSectionUpload .filter-title-icon-bg-mobile").classList.toggle("active", udSortActive);
   document.querySelector("#filterSectionUpload .filter-sort-icon-bars-mobile").classList.toggle("active", udSortActive);
   document.querySelector("#filterSectionViews .filter-title-icon-bg-mobile").classList.toggle("active", mvSortActive);
