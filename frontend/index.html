@@ -484,6 +484,14 @@
     height: var(--safe-top-strip-height, 0px);
     background-color: #FFFFFF;
   }
+  /* Pure experiment, per the user's own "might as well try it" — favorites
+     accent color (matches --badge-rank's favorites-theme value elsewhere)
+     instead of the fixed white, but *only* while favorites-theme is also
+     active. Specificity (1 id + 2 classes) beats the plain #safeAreaTopMask
+     rule above regardless of source order, so this doesn't need !important. */
+  html.is-safari.favorites-theme #safeAreaTopMask {
+    background-color: #875658;
+  }
   #safeAreaBottomMask {
     bottom: 0;
     height: env(safe-area-inset-bottom, 0px);
