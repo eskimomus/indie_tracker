@@ -3,20 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <script>
-  // Real Safari only — not Chrome/Firefox/Edge/Opera, including their iOS
-  // builds, which all report "Safari" in their own UA string too (Apple
-  // requires every iOS browser to use WebKit under the hood, regardless of
-  // brand) but aren't actually Safari and don't necessarily share its
-  // native-chrome-recoloring quirk that #safeAreaTopMask/html.is-safari
-  // (see <style>) exists to paper over. Synchronous and as early as
-  // possible — right after <meta charset>, before <style> is even parsed —
-  // so html carries this class from the very first paint; doing this any
-  // later (e.g. in the main script at the bottom of <body>) would let the
-  // page flash without the strip/content-shift and then jump once this
-  // caught up.
+  // Real Safari on iOS only — not Chrome/Firefox/Edge/Opera, including
+  // their iOS builds, which all report "Safari" in their own UA string too
+  // (Apple requires every iOS browser to use WebKit under the hood,
+  // regardless of brand) but aren't actually Safari; and not desktop
+  // Safari either, per the user's own call — macOS Safari has no
+  // compact/bottom tab-bar mode and no safe-area-inset concept in the same
+  // sense a phone does, so it never had the native-chrome-recoloring quirk
+  // #safeAreaTopMask/html.is-safari (see <style>) exists to paper over in
+  // the first place; showing the strip there would just be an unexplained
+  // band with nothing behind it, same as any other non-iOS-Safari browser.
+  // Synchronous and as early as possible — right after <meta charset>,
+  // before <style> is even parsed — so html carries this class from the
+  // very first paint; doing this any later (e.g. in the main script at the
+  // bottom of <body>) would let the page flash without the strip/
+  // content-shift and then jump once this caught up.
   (function() {
     var ua = navigator.userAgent;
-    if (/^((?!chrome|android|crios|fxios|edg|opr).)*safari/i.test(ua)) {
+    var isSafari = /^((?!chrome|android|crios|fxios|edg|opr).)*safari/i.test(ua);
+    var isIOS = /iPad|iPhone|iPod/.test(ua);
+    if (isSafari && isIOS) {
       document.documentElement.classList.add("is-safari");
     }
   })();
@@ -426,63 +432,63 @@
     background: linear-gradient(to right, transparent 0%, #000000 100%);
   }
 
-  /* Cover for the iOS safe-area strips (status bar under viewport-fit=cover,
-     and the equivalent bottom inset) — an unstyled strip there falls
-     through to Safari's own default fill, which doesn't belong to this
-     site's palette at all. #safeAreaBottomMask is themed (var(--panel-dark),
-     tracks favorites-theme) — the drawer backdrop's own edge-buffer fix
-     (see .filter-drawer-back-mobile/.filter-drawer-fill-mobile) turned out
-     to be what actually keeps the *bottom* strip from getting recolored in
-     Safari's own native chrome, so this mask's color is free to just track
-     the theme normally, same as everything else on the page.
-     #safeAreaTopMask is different, permanently: nothing found — not moving
-     every drawer/tab layer off the true top edge, not a lower z-index —
-     stopped Safari's native chrome from recoloring the *top* strip on
-     interaction (confirmed extensively on the user's own device; see git
-     history). Per the user's explicit call once that was established: stop
-     trying to prevent the recolor, and instead make sure it always lands
-     on the exact same fixed color no matter when it fires — hardcoded flat
-     white, not var()-driven, and deliberately NOT wired through
-     favorites-theme or setSafeAreaMaskColors() below (tried the default
-     theme's own green, then flat black, before landing on white — the
-     fixed-color approach itself is what mattered, confirmed working
-     on-device; the exact color is purely the user's own visual call).
-     height uses max(env(...), 8px) rather than env() alone — this
-     device's own env(safe-area-inset-top) is 0 (no notch), which is
-     exactly why the very first version of this mask (var()-colored,
-     env()-only height) never rendered anything for this specific device:
-     zero height paints nothing regardless of color. 8px is a deliberately
-     thin floor, not a measured "this is the real status bar height" value
-     — just enough for this mask to have *something* real to paint on
-     every device, not just notched ones (max() still prefers the larger,
-     real env() value on those). z-index above literally everything else
-     in the file, so nothing (the drawer's backdrop, a dropdown, the
-     description panel) can ever paint over and visually replace this
-     color with its own.
-     Only ever needed to work around Safari's own native chrome behavior
-     in the first place — every other browser already renders this region
+  /* Cover for the top iOS safe-area strip (status bar under
+     viewport-fit=cover) — an unstyled strip there falls through to
+     Safari's own default fill, which doesn't belong to this site's
+     palette at all. There used to be a #safeAreaBottomMask here too, plus
+     a whole JS apparatus (setSafeAreaMaskColors()/nudgeIOSChromeColor())
+     to keep it theme-colored and force Safari to re-sample it — removed
+     once it became clear the *drawer's own* edge-buffer fix (see
+     .filter-drawer-back-mobile/.filter-drawer-fill-mobile) was the actual
+     reason the bottom strip stopped getting recolored, making that mask
+     redundant, and per the user's own report, still occasionally visible
+     mid-scroll as a leftover, unnecessary layer. The bottom safe-area
+     inset now just shows whatever's really there — same fix that never
+     worked for the top strip specifically, which is why this file still
+     carries the fixed-color approach below for that one, and only that one.
+     #safeAreaTopMask itself: nothing found — not moving every drawer/tab
+     layer off the true top edge, not a lower z-index — stopped Safari's
+     native chrome from recoloring the top strip on interaction (confirmed
+     extensively on the user's own device; see git history). Per the
+     user's explicit call once that was established: stop trying to
+     prevent the recolor, and instead make sure it always lands on the
+     exact same fixed color no matter when it fires — hardcoded, not
+     var()-driven or theme-tracking. height uses max(env(...), 8px) rather
+     than env() alone — a device with no notch has env(safe-area-inset-top)
+     at 0, which is exactly why the very first version of this mask
+     (env()-only height) never rendered anything at all on one: zero
+     height paints nothing regardless of color. 8px is a deliberately thin
+     floor, not a measured "this is the real status bar height" value —
+     just enough for this mask to have *something* real to paint on every
+     device, not just notched ones (max() still prefers the larger, real
+     env() value on those). z-index above literally everything else in the
+     file, so nothing (the drawer's backdrop, a dropdown, the description
+     panel) can ever paint over and visually replace this color with its own.
+     Only ever needed to work around Safari's own native chrome behavior in
+     the first place — every other browser already renders this region
      correctly with nothing painted there at all, so forcing the same
-     fixed white strip on them would just be an unexplained band with
-     nothing behind it. html.is-safari (set as early as possible, before
-     first paint, by the inline script right after <meta charset> — see
-     there for the actual detection) gates --safe-top-strip-height to a
-     real value; everywhere else it's unset, so both this mask's height
-     and #canvas/#canvasMobile's own margin-top below fall back to 0px via
-     the same var(), and neither has any effect. */
+     fixed strip on them would just be an unexplained band with nothing
+     behind it, and desktop Safari doesn't share this quirk either (no
+     compact/bottom tab-bar mode, no safe-area concept in the same sense) —
+     html.is-safari (set as early as possible, before first paint, by the
+     inline script right after <meta charset> — see there for the actual
+     detection, which requires iOS specifically, not just a Safari UA)
+     gates --safe-top-strip-height to a real value; everywhere else it's
+     unset, so both this mask's height and #canvas/#canvasMobile's own
+     margin-top below fall back to 0px via the same var(), and neither has
+     any effect. */
   html.is-safari {
     --safe-top-strip-height: max(env(safe-area-inset-top, 0px), 8px);
   }
-  #safeAreaTopMask, #safeAreaBottomMask {
+  #safeAreaTopMask {
     position: fixed;
+    top: 0;
     left: 0;
     width: 100%;
-    z-index: 999999;
-    pointer-events: none;
-  }
-  #safeAreaTopMask {
-    top: 0;
     height: var(--safe-top-strip-height, 0px);
     background-color: #FFFFFF;
+    z-index: 999999;
+    pointer-events: none;
   }
   /* Pure experiment, per the user's own "might as well try it" — favorites
      accent color (matches --badge-rank's favorites-theme value elsewhere)
@@ -501,11 +507,6 @@
      class happened to be added first. */
   html.is-safari.top-strip-late:not(.favorites-theme) #safeAreaTopMask {
     background-color: #657D51;
-  }
-  #safeAreaBottomMask {
-    bottom: 0;
-    height: env(safe-area-inset-bottom, 0px);
-    background-color: var(--panel-dark);
   }
   /* Per the user's request: #safeAreaTopMask now permanently occupies real
      screen space (Safari only — see html.is-safari above) rather than
@@ -2515,7 +2516,6 @@
 <div class="page-vignette page-vignette-right"></div>
 
 <div id="safeAreaTopMask"></div>
-<div id="safeAreaBottomMask"></div>
 
 <div id="canvas">
   <script>
@@ -3298,62 +3298,6 @@ function toggleFavorite(gameId) {
   }
 }
 
-// #safeAreaTopMask deliberately isn't handled here anymore — it's a fixed,
-// hardcoded color now (see its own comment in <style>), specifically NOT
-// wired to favorites-theme, after extensive on-device testing established
-// nothing could stop Safari's native chrome from recoloring the top strip
-// on interaction; only #safeAreaBottomMask still tracks the theme, since
-// the drawer's own edge-buffer fix is what actually keeps *that* strip
-// from being recolored in the first place, leaving its color free to just
-// follow the theme normally like everything else on the page.
-const SAFE_AREA_BOTTOM_COLOR = { default: "#1C2C21", favorites: "#2C1C1C" };
-function setSafeAreaMaskColors(favorites) {
-  const bottomMask = document.getElementById("safeAreaBottomMask");
-  bottomMask.style.backgroundColor = favorites ? SAFE_AREA_BOTTOM_COLOR.favorites : SAFE_AREA_BOTTOM_COLOR.default;
-}
-
-// Nudges scrollY by 1px and immediately back — imperceptible to the user,
-// but enough of a real scroll event to make iOS Safari re-sample whatever
-// color it tints its own chrome with, instead of holding on to whatever it
-// last sampled. See the big comment above for why this is needed at all.
-function nudgeIOSChromeColorNow() {
-  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-  if (maxScroll <= 0) {
-    // Nothing to scroll (e.g. a short/empty page) — borrow 2px of scroll
-    // room from body's own min-height just long enough for one real
-    // scroll-and-back, then hand it straight back.
-    const prevMinHeight = document.body.style.minHeight;
-    document.body.style.minHeight = (window.innerHeight + 2) + "px";
-    window.scrollTo(0, 1);
-    requestAnimationFrame(() => {
-      window.scrollTo(0, 0);
-      document.body.style.minHeight = prevMinHeight;
-    });
-    return;
-  }
-  // Relative, not remembered-absolute-then-restore: self-canceling by
-  // construction regardless of anything else nudging scrollY in between.
-  window.scrollBy(0, 1);
-  requestAnimationFrame(() => window.scrollBy(0, -1));
-}
-// Callers (favorites toggle) trigger a render() fade that hasn't actually
-// settled into its final layout yet — nudging immediately would measure
-// scroll room against the *outgoing* page, not the one about to be shown.
-// 600ms comfortably outlasts the fade-out+fade-in pair (250ms each).
-function nudgeIOSChromeColor() {
-  setTimeout(nudgeIOSChromeColorNow, 600);
-}
-
-// Applied once up front too — showingFavoritesOnly starts false, so this
-// just pins the initial (default-theme) color as an explicit inline style
-// from the very first script execution, matching the "already correct on
-// first visit" requirement without waiting for a first toggle to ever happen.
-setSafeAreaMaskColors(false);
-// 2500ms clears the preloader's own 1000ms hold plus its slide-down
-// transition (see the "Preloader" setTimeout further down), so this fires
-// against the page's actual settled layout instead of racing it.
-setTimeout(nudgeIOSChromeColorNow, 2500);
-
 // Per the user's request: on the main (non-favorites) page specifically,
 // the fixed top strip starts white and switches to #657D51 (the default
 // theme's own --badge-rank value) exactly once, 500ms after page load —
@@ -3388,9 +3332,9 @@ function toggleFavoritesView() {
   document.documentElement.classList.toggle("favorites-theme", showingFavoritesOnly);
   document.body.classList.toggle("favorites-theme", showingFavoritesOnly);
   // page title stays "eskimo's indie tracker" in both states, per the
-  // user's call — only the palette (favorites-theme) changes.
-  setSafeAreaMaskColors(showingFavoritesOnly);
-  nudgeIOSChromeColor();
+  // user's call — only the palette (favorites-theme) changes. The
+  // top-strip color itself follows html.favorites-theme automatically via
+  // plain CSS now (see #safeAreaTopMask in <style>) — no JS step needed.
   render(true);
 }
 headerFav.addEventListener("click", toggleFavoritesView);
