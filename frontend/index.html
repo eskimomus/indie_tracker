@@ -214,6 +214,17 @@
        the user does want to be able to select/copy. */
     -webkit-user-select: none;
     user-select: none;
+    /* Mobile WebKit/Blink's default tap feedback: a gray rectangle flashed
+       over the *whole tapped element's box* for a fraction of a second,
+       regardless of what's actually drawn there — a masked, non-
+       rectangular shape (a circle, this file's usual "wobbly rounded
+       rect" via -webkit-mask-image, etc.) still flashes its real,
+       rectangular bounding box, which reads as a stray container
+       silhouette popping in behind/around the visible shape. Same
+       property either way; only relevant on touch, but harmless to set
+       globally rather than chasing down every individually-tappable
+       element (rows, badges, contact pills, header/filter buttons...). */
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Both overflow axes live on html only — deliberately NOT on body at all,
