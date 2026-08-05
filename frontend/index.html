@@ -1110,6 +1110,26 @@
     width: 1291px;
     margin-bottom: 40px;
   }
+  /* Per the user's request: removing a favorite while *viewing* favorites
+     collapses just that one row (fades out, then its height/margin-bottom
+     shrink to 0) instead of the old behavior — the whole visible batch
+     fading out and back in via render(true)'s fadeRowsOut/fadeRowsIn. The
+     other rows aren't touched at all; they "rise up" purely as the normal
+     block-flow consequence of this row's own footprint shrinking to
+     nothing, animated smoothly frame-by-frame because the shrink itself
+     is a transition, not an instant jump — no separate FLIP/transform math
+     needed for them.
+     Only transition + overflow live in this class; the actual height
+     value is set inline by animateRowRemoval() below, since .row's real
+     height is content-driven (no fixed px anywhere to declare a "from"
+     state here) — locked to its current offsetHeight first, then changed
+     to 0, the standard trick for transitioning an otherwise-auto height. */
+  .row.removing {
+    overflow: hidden;
+    transition: height 0.5s cubic-bezier(0.45, 0, 0.55, 1),
+                margin-bottom 0.5s cubic-bezier(0.45, 0, 0.55, 1),
+                opacity 0.25s ease;
+  }
 
   .row-head {
     display: flex;
@@ -1804,6 +1824,18 @@
        block-flow sibling within #rowsMobile) smoothly out of the way
        instead of the description just overlapping it. */
     transition: height 0.5s cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  /* Same per-row removal animation as desktop's .row.removing (see that
+     comment) — height's own transition already exists unconditionally
+     above (shared with the description-expand feature), so this only
+     needs to add the opacity fade and clip the now-absolutely-positioned-
+     everything content (title, video, badges, pills — none of them
+     reflow on their own as this box shrinks, since they're all
+     position:absolute within it) instead of letting it spill into the
+     next row while collapsing. */
+  .row-mobile.removing {
+    overflow: hidden;
+    transition: height 0.5s cubic-bezier(0.45, 0, 0.55, 1), opacity 0.25s ease;
   }
   .row-title-mobile {
     position: absolute;
@@ -3365,14 +3397,18 @@ function toggleFavorite(gameId) {
   if (isRemoving) favorites.delete(gameId);
   else favorites.add(gameId);
   saveFavorites();
-  // Removing a favorite while *viewing* favorites-only shrinks the
-  // currently-displayed list (the row disappears entirely) — the same
-  // kind of list-content change as a filter/sort change, so it gets the
-  // same resetView=true fade (see render()). In every other case, update the
-  // button's class directly in-place so its background-color transitions
-  // smoothly via CSS without recreating the DOM nodes.
+  // Removing a favorite while *viewing* favorites-only used to trigger a
+  // full render(true) — the whole visible batch fading out and back in via
+  // fadeRowsOut/fadeRowsIn just to reflect one heart click. Per the user's
+  // request, only that one row animates now (see animateRowRemoval); every
+  // other row stays exactly where it is except for rising into the gap as
+  // a normal consequence of that row's own footprint shrinking away. In
+  // every other case (adding a favorite, or removing one while *not*
+  // viewing favorites-only, so nothing needs to leave the list at all),
+  // update the button's class directly in-place so its background-color
+  // transitions smoothly via CSS without recreating any DOM nodes.
   if (showingFavoritesOnly && isRemoving) {
-    render(true);
+    animateRowRemoval(gameId);
   } else {
     // .badge-fav-mobile alongside .badge-fav — both templates render the
     // same data-fav-toggle id at once (see renderMoreRowsMobile), so this
@@ -3381,6 +3417,90 @@ function toggleFavorite(gameId) {
       el.classList.toggle("active", !isRemoving);
     });
   }
+}
+
+// Renumbers whichever #N rank badges are still in the DOM, in their
+// current (post-removal) order — simpler and more robust than trying to
+// patch just the badges "after" whatever index was removed, and correct
+// regardless of how many render() batches are currently loaded, since
+// rank is really just "position among what's currently rendered", not
+// tied to any one batch's own numbering.
+function renumberRanks() {
+  document.querySelectorAll("#rows .badge-rank-num").forEach((el, i) => { el.textContent = `#${i + 1}`; });
+  document.querySelectorAll("#rowsMobile .badge-rank-num-mobile").forEach((el, i) => { el.textContent = `#${i + 1}`; });
+}
+
+// Collapses a single row (fade + height/margin shrink to 0), then removes
+// it from the DOM — see .row.removing/.row-mobile.removing in <style> for
+// why the *other* rows need no animation of their own at all: they just
+// rise into the gap as this row's box shrinks, a normal block-flow
+// consequence of a height transition, not something animated separately.
+// height is content-driven on desktop (.row) and a fixed, already-
+// transitioning px value on mobile (.row-mobile, shared with the
+// description-expand feature) — same "lock the current rendered height as
+// an explicit inline value, force a reflow, then animate to 0" trick
+// either way, since even mobile's declared 1324px could actually be taller
+// right now if that row's own description happens to be expanded.
+function collapseRow(el, extraProps, cb) {
+  const h = el.offsetHeight;
+  el.classList.add("removing");
+  el.style.height = h + "px";
+  el.offsetHeight; // force reflow so the browser commits the locked height before it starts moving toward 0
+  el.style.height = "0px";
+  el.style.opacity = "0";
+  for (const prop in extraProps) el.style[prop] = extraProps[prop];
+  onceTransitionEnd(el, "height", () => { el.remove(); cb(); });
+}
+
+function animateRowRemoval(gameId) {
+  const desktopRow = document.querySelector(`.row[data-game-id="${gameId}"]`);
+  const mobileRow = document.querySelector(`.row-mobile[data-game-id="${gameId}"]`);
+  // Matches the @media (max-width: 1024px) breakpoint that actually swaps
+  // #canvas/#canvasMobile's own display (see <style>) — the hidden tree's
+  // row is never visible either way, so it's just removed outright instead
+  // of paying for (and waiting on) a transition nothing will render.
+  const isMobileView = window.innerWidth <= 1024;
+
+  let pending = 0;
+  const onOneDone = () => { if (--pending <= 0) finishRowRemoval(gameId); };
+
+  if (desktopRow) {
+    if (isMobileView) desktopRow.remove();
+    else { pending++; collapseRow(desktopRow, { marginBottom: "0px" }, onOneDone); }
+  }
+  if (mobileRow) {
+    if (!isMobileView) mobileRow.remove();
+    else { pending++; collapseRow(mobileRow, {}, onOneDone); }
+  }
+  if (pending === 0) finishRowRemoval(gameId);
+}
+
+function finishRowRemoval(gameId) {
+  const idx = currentList.findIndex(g => g.id === gameId);
+  if (idx !== -1) currentList.splice(idx, 1);
+  // Keeps the batching counters (see renderMoreRows/renderMoreRowsMobile)
+  // in sync with what's actually in the DOM now — both trees always
+  // render in lockstep from the same currentList (see render()), so both
+  // counts shrink together regardless of which tree the user is currently
+  // looking at.
+  renderedCount = Math.max(0, renderedCount - 1);
+  renderedCountMobile = Math.max(0, renderedCountMobile - 1);
+  openDescriptions.delete(gameId);
+  renumberRanks();
+  if (currentList.length === 0) {
+    // Nothing left to animate — fall back to the normal empty-state path
+    // (render(true) is what actually knows how to swap in the "heartless"
+    // message; see showEmptyState()).
+    render(true);
+    return;
+  }
+  // Removing a row can reveal the scroll sentinel earlier than expected
+  // (the page just got shorter) — top up either tree in case it now needs
+  // to load its next batch immediately rather than waiting on a scroll
+  // event that may never come, same reasoning as render()'s own call to
+  // these after a fresh batch.
+  maybeLoadMoreRows();
+  maybeLoadMoreRowsMobile();
 }
 
 // Per the user's request: on the main (non-favorites) page specifically,
