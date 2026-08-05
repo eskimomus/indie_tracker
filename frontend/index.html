@@ -423,10 +423,11 @@
      history). Per the user's explicit call once that was established: stop
      trying to prevent the recolor, and instead make sure it always lands
      on the exact same fixed color no matter when it fires — hardcoded flat
-     black, not var()-driven, and deliberately NOT wired through
-     favorites-theme or setSafeAreaMaskColors() below (tried matching the
-     default theme's own green first; the user opted for plain black
-     instead once thinness became the priority over color-matching).
+     white, not var()-driven, and deliberately NOT wired through
+     favorites-theme or setSafeAreaMaskColors() below (tried the default
+     theme's own green, then flat black, before landing on white — the
+     fixed-color approach itself is what mattered, confirmed working
+     on-device; the exact color is purely the user's own visual call).
      height uses max(env(...), 8px) rather than env() alone — this
      device's own env(safe-area-inset-top) is 0 (no notch), which is
      exactly why the very first version of this mask (var()-colored,
@@ -449,7 +450,7 @@
   #safeAreaTopMask {
     top: 0;
     height: max(env(safe-area-inset-top, 0px), 8px);
-    background-color: #000000;
+    background-color: #FFFFFF;
   }
   #safeAreaBottomMask {
     bottom: 0;
