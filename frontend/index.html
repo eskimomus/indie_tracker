@@ -1723,6 +1723,47 @@
     pointer-events: none;
   }
 
+  /* Loading spinner — see the HTML comment on #loadingSpinner for what
+     shows/hides it. Fixed and centered on the real viewport (not #canvas/
+     #canvasMobile's own zoomed coordinate space) so it stays dead-center
+     regardless of scale/breakpoint, same reasoning as #safeAreaTopMask
+     living outside those trees. z-index above even that mask (999999) —
+     this is the one thing that must never be covered by anything, loading
+     screen included. */
+  #loadingSpinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999999;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+  }
+  #loadingSpinner.hide {
+    opacity: 0;
+  }
+  .loading-spinner-icon {
+    display: block;
+    animation: loading-spinner-spin 1s linear infinite;
+  }
+  /* Two separate assets (the user's own exports, not one icon reused at
+     two sizes — their proportions/stroke-width aren't a uniform scale of
+     each other) swapped at the same breakpoint every other mobile/desktop
+     asset in this file uses. */
+  .loading-spinner-mobile { display: none; }
+  @media (max-width: 1024px) {
+    .loading-spinner-desktop { display: none; }
+    .loading-spinner-mobile { display: block; }
+  }
+  /* Negative degrees = counter-clockwise, per the user's spec — same
+     convention as the existing refreshSpinIn keyframe above, just a
+     plain, non-decreasing infinite loop instead of a one-shot "spin in". */
+  @keyframes loading-spinner-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(-360deg); }
+  }
+
   /* ============================================================
      MOBILE TEMPLATE — a ground-up separate design (not a rescaled
      copy of desktop's #canvas), on its own 1601px-wide reference
@@ -2625,6 +2666,23 @@
 
 <div id="preloader"></div>
 
+<!-- Shown while the initial /api/games fetch (see loadGames()) is still in
+     flight — hidden the moment that first load resolves, success or
+     failure, so it never gets stuck spinning forever on a genuinely broken
+     endpoint. Separate from #preloader above (a fixed-duration intro cover
+     unrelated to whether data has actually loaded) and not re-shown on
+     later loadGames() calls (filter/period changes already have their own
+     fadeRowsOut/fadeRowsIn transition; re-covering the screen with this on
+     top of an already-visible list would be redundant, not requested). -->
+<div id="loadingSpinner">
+  <svg class="loading-spinner-icon loading-spinner-desktop" width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M70.7447 42.125C70.9134 40.7736 71 39.3971 71 38C71 19.7746 56.2255 5 38 5C27.6851 5 18.4756 9.73249 12.4242 17.1447M12.4242 17.1447V5M12.4242 17.1447V17.3747L24.7992 17.375M5.2553 33.875C5.08679 35.2264 5 36.6029 5 38C5 56.2255 19.7746 71 38 71C47.8563 71 56.7032 66.6791 62.75 59.8278M62.75 59.8278V58.625H50.375M62.75 59.8278V71" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <svg class="loading-spinner-icon loading-spinner-mobile" width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M180.342 106.625C180.777 103.144 181 99.5987 181 96C181 49.0558 142.944 11 96 11C69.4313 11 45.7099 23.1897 30.1229 42.2817M30.1229 42.2817V11M30.1229 42.2817V42.8743L61.9979 42.875M11.6576 85.375C11.2236 88.8558 11 92.4013 11 96C11 142.944 49.0558 181 96 181C121.387 181 144.175 169.87 159.75 152.223M159.75 152.223V149.125H127.875M159.75 152.223V181" stroke="white" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</div>
+
 <div id="bgBase"></div>
 <div id="bgStripes"></div>
 
@@ -3034,7 +3092,17 @@ async function loadGames() {
     }
   }
   render(true);
+  // Only the very first call hides #loadingSpinner — later ones (period/
+  // metric filter changes, see the call sites above) already have their
+  // own fadeRowsOut/fadeRowsIn transition and shouldn't re-cover an
+  // already-visible list with this. Hides on failure too (allGames ends
+  // up []), same "don't get stuck" reasoning as the retry logic above.
+  if (!loadingSpinnerHidden) {
+    loadingSpinnerHidden = true;
+    document.getElementById("loadingSpinner").classList.add("hide");
+  }
 }
+let loadingSpinnerHidden = false;
 
 async function loadLastUpdated() {
   const el = document.getElementById("lastUpdated");
