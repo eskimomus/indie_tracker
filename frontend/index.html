@@ -410,28 +410,35 @@
   /* Cover for the iOS safe-area strips (status bar under viewport-fit=cover,
      and the equivalent bottom inset) — an unstyled strip there falls
      through to Safari's own default fill, which doesn't belong to this
-     site's palette at all. Rather than trying to keep this transparent and
-     let real page content show through (tried; still visibly wrong on
-     mobile Safari — see the two commits before this one), these are
-     painted a flat, deliberately-chosen color per the user's spec: on
-     <html> via var(), not hardcoded, so favorites-theme recolors them the
-     same way it recolors everything else, automatically, the moment the
-     class toggles — no separate JS step, since these are plain CSS custom
-     properties, not Safari's own native chrome (that's a different, harder
-     problem this isn't attempting to solve). --badge-rank/--panel-dark
-     specifically because the user's spec values (657D51/1C2C21 default,
-     875658/2C1C1C favorites) are exactly those two vars' existing values in
-     both themes — reusing them keeps this in sync with the rest of the
-     palette for free instead of duplicating the same four hex codes into
-     new vars. Present in the initial markup (not injected by JS) and
-     opaque with no transition, so the very first paint already has the
-     right color, before any script runs, matching the "no transparent
-     safe zone, ever, including on first load" part of the spec. z-index
-     above literally everything else in the file, so nothing (the drawer's
-     backdrop, a dropdown, the description panel) can ever paint over and
-     visually replace this color with its own. env()'s own fallback (0px)
-     makes both zero-height (nothing renders) on any device/browser without
-     a safe-area inset, desktop included. */
+     site's palette at all. #safeAreaBottomMask is themed (var(--panel-dark),
+     tracks favorites-theme) — the drawer backdrop's own edge-buffer fix
+     (see .filter-drawer-back-mobile/.filter-drawer-fill-mobile) turned out
+     to be what actually keeps the *bottom* strip from getting recolored in
+     Safari's own native chrome, so this mask's color is free to just track
+     the theme normally, same as everything else on the page.
+     #safeAreaTopMask is different, permanently: nothing found — not moving
+     every drawer/tab layer off the true top edge, not a lower z-index —
+     stopped Safari's native chrome from recoloring the *top* strip on
+     interaction (confirmed extensively on the user's own device; see git
+     history). Per the user's explicit call once that was established: stop
+     trying to prevent the recolor, and instead make sure it always lands
+     on the exact same fixed color no matter when it fires — hardcoded flat
+     black, not var()-driven, and deliberately NOT wired through
+     favorites-theme or setSafeAreaMaskColors() below (tried matching the
+     default theme's own green first; the user opted for plain black
+     instead once thinness became the priority over color-matching).
+     height uses max(env(...), 8px) rather than env() alone — this
+     device's own env(safe-area-inset-top) is 0 (no notch), which is
+     exactly why the very first version of this mask (var()-colored,
+     env()-only height) never rendered anything for this specific device:
+     zero height paints nothing regardless of color. 8px is a deliberately
+     thin floor, not a measured "this is the real status bar height" value
+     — just enough for this mask to have *something* real to paint on
+     every device, not just notched ones (max() still prefers the larger,
+     real env() value on those). z-index above literally everything else
+     in the file, so nothing (the drawer's backdrop, a dropdown, the
+     description panel) can ever paint over and visually replace this
+     color with its own. */
   #safeAreaTopMask, #safeAreaBottomMask {
     position: fixed;
     left: 0;
@@ -441,8 +448,8 @@
   }
   #safeAreaTopMask {
     top: 0;
-    height: env(safe-area-inset-top, 0px);
-    background-color: var(--badge-rank);
+    height: max(env(safe-area-inset-top, 0px), 8px);
+    background-color: #000000;
   }
   #safeAreaBottomMask {
     bottom: 0;
@@ -3226,34 +3233,17 @@ function toggleFavorite(gameId) {
   }
 }
 
-// Neither plain CSS (background-color: var(--badge-rank)/var(--panel-dark))
-// nor setting backgroundColor directly in JS made #safeAreaTopMask/
-// #safeAreaBottomMask visibly retint on a real device — in both cases the
-// *element* was verifiably the right color (confirmed via computed style),
-// so the element itself was never the problem. What the user's own
-// on-device testing showed instead: neither strip renders anything at all
-// on first load; both first pick up a color only once something like the
-// filter drawer opens (some real, visible layout event); and once picked
-// up, that color is stuck until the next full reload, never following any
-// later favorites-theme toggle. That's the signature of iOS Safari
-// sampling the actual pixels at the top/bottom edge of the viewport once,
-// to tint its own native status-bar/toolbar chrome, then caching that
-// sample rather than re-reading it on every repaint — a documented-ish
-// Safari quirk, and the same one the removed nudgeIOSChromeColor()
-// (5844995) used to work around, just aimed at a different goal back then
-// (keeping the strips frozen, not tracking them). Our own element's color
-// was always correct at every moment; Safari just wasn't looking at it
-// again after its first sample. Re-triggering that sample explicitly,
-// right after setting the "true" color, is the fix — nudgeIOSChromeColor
-// below does that with the standard 1px-scroll-and-back trick, both once
-// on load (rather than waiting on the user to open the drawer) and on
-// every subsequent favorites-theme toggle.
-const SAFE_AREA_TOP_COLOR = { default: "#657D51", favorites: "#875658" };
+// #safeAreaTopMask deliberately isn't handled here anymore — it's a fixed,
+// hardcoded color now (see its own comment in <style>), specifically NOT
+// wired to favorites-theme, after extensive on-device testing established
+// nothing could stop Safari's native chrome from recoloring the top strip
+// on interaction; only #safeAreaBottomMask still tracks the theme, since
+// the drawer's own edge-buffer fix is what actually keeps *that* strip
+// from being recolored in the first place, leaving its color free to just
+// follow the theme normally like everything else on the page.
 const SAFE_AREA_BOTTOM_COLOR = { default: "#1C2C21", favorites: "#2C1C1C" };
 function setSafeAreaMaskColors(favorites) {
-  const topMask = document.getElementById("safeAreaTopMask");
   const bottomMask = document.getElementById("safeAreaBottomMask");
-  topMask.style.backgroundColor = favorites ? SAFE_AREA_TOP_COLOR.favorites : SAFE_AREA_TOP_COLOR.default;
   bottomMask.style.backgroundColor = favorites ? SAFE_AREA_BOTTOM_COLOR.favorites : SAFE_AREA_BOTTOM_COLOR.default;
 }
 
