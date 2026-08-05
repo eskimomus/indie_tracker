@@ -492,6 +492,16 @@
   html.is-safari.favorites-theme #safeAreaTopMask {
     background-color: #875658;
   }
+  /* Per the user's request: on the main (non-favorites) page, switches the
+     strip from white to the default theme's own green 500ms after page
+     load — html.top-strip-late is added once by a setTimeout near the top
+     of the main script (see there). :not(.favorites-theme) keeps this from
+     ever competing with the rule above; if favorites-theme is active this
+     selector simply doesn't match, regardless of specificity or which
+     class happened to be added first. */
+  html.is-safari.top-strip-late:not(.favorites-theme) #safeAreaTopMask {
+    background-color: #657D51;
+  }
   #safeAreaBottomMask {
     bottom: 0;
     height: env(safe-area-inset-bottom, 0px);
@@ -3343,6 +3353,17 @@ setSafeAreaMaskColors(false);
 // transition (see the "Preloader" setTimeout further down), so this fires
 // against the page's actual settled layout instead of racing it.
 setTimeout(nudgeIOSChromeColorNow, 2500);
+
+// Per the user's request: on the main (non-favorites) page specifically,
+// the fixed top strip starts white and switches to #657D51 (the default
+// theme's own --badge-rank value) exactly once, 500ms after page load —
+// html.top-strip-late is added once and left set for the rest of the
+// page's life, not re-timed on every visit back to the default page, since
+// the request was tied to *page load*, not to "entering" the default view.
+// :not(.favorites-theme) on the CSS side (see <style>) means this never
+// fights the separate favorites-mode color rule regardless of which one
+// happens to apply first.
+setTimeout(() => document.documentElement.classList.add("top-strip-late"), 500);
 
 const headerFav = document.getElementById("headerFav");
 const headerFavMobile = document.getElementById("headerFavMobile");
