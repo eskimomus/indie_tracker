@@ -2685,10 +2685,10 @@
      background but under the entire interface" (see that comment) without
      needing an explicit z-index to do it. -->
 <div id="loadingSpinner">
-  <svg class="loading-spinner-icon loading-spinner-desktop" width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <svg class="loading-spinner-icon loading-spinner-desktop" width="66" height="66" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M70.7447 42.125C70.9134 40.7736 71 39.3971 71 38C71 19.7746 56.2255 5 38 5C27.6851 5 18.4756 9.73249 12.4242 17.1447M12.4242 17.1447V5M12.4242 17.1447V17.3747L24.7992 17.375M5.2553 33.875C5.08679 35.2264 5 36.6029 5 38C5 56.2255 19.7746 71 38 71C47.8563 71 56.7032 66.6791 62.75 59.8278M62.75 59.8278V58.625H50.375M62.75 59.8278V71" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
-  <svg class="loading-spinner-icon loading-spinner-mobile" width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <svg class="loading-spinner-icon loading-spinner-mobile" width="132" height="132" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M180.342 106.625C180.777 103.144 181 99.5987 181 96C181 49.0558 142.944 11 96 11C69.4313 11 45.7099 23.1897 30.1229 42.2817M30.1229 42.2817V11M30.1229 42.2817V42.8743L61.9979 42.875M11.6576 85.375C11.2236 88.8558 11 92.4013 11 96C11 142.944 49.0558 181 96 181C121.387 181 144.175 169.87 159.75 152.223M159.75 152.223V149.125H127.875M159.75 152.223V181" stroke="white" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
 </div>
@@ -4756,6 +4756,27 @@ function rescale() {
   // the same zoom trick as #fixedUiAnchor just above.
   document.querySelectorAll(".page-vignette").forEach(el => {
     el.style.zoom = scale;
+  });
+
+  // Loading spinner icons — a fixed sibling of #canvas/#canvasMobile, not
+  // a descendant, so its declared size doesn't automatically scale with
+  // the design like a descendant's would. Sets the real on-screen pixel
+  // size directly (66×66 / 132×132 are the user's own design-space spec —
+  // 1920×1080 desktop reference, 1601-wide mobile — multiplied by the same
+  // scale/mobileScale everything else here uses), rather than the zoom
+  // trick .page-vignette uses below: this element's own continuous
+  // rotate() animation makes getBoundingClientRect() (the axis-aligned box
+  // of the *rotated* shape, always ≥ the unrotated size except at
+  // 0/90/180/270°) unreliable for sanity-checking a zoom-based size
+  // against the design spec — confirmed by momentarily setting
+  // animation:none before re-measuring, which then matched exactly.
+  // Setting width/height directly sidesteps needing that workaround every
+  // time this size is ever verified again.
+  document.querySelectorAll(".loading-spinner-desktop").forEach(el => {
+    el.style.width = el.style.height = (66 * scale) + "px";
+  });
+  document.querySelectorAll(".loading-spinner-mobile").forEach(el => {
+    el.style.width = el.style.height = (132 * mobileScale) + "px";
   });
 
   // centers "you don't love anything. heartless." between the header's
