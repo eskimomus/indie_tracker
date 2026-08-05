@@ -2,6 +2,25 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<script>
+  // Real Safari only — not Chrome/Firefox/Edge/Opera, including their iOS
+  // builds, which all report "Safari" in their own UA string too (Apple
+  // requires every iOS browser to use WebKit under the hood, regardless of
+  // brand) but aren't actually Safari and don't necessarily share its
+  // native-chrome-recoloring quirk that #safeAreaTopMask/html.is-safari
+  // (see <style>) exists to paper over. Synchronous and as early as
+  // possible — right after <meta charset>, before <style> is even parsed —
+  // so html carries this class from the very first paint; doing this any
+  // later (e.g. in the main script at the bottom of <body>) would let the
+  // page flash without the strip/content-shift and then jump once this
+  // caught up.
+  (function() {
+    var ua = navigator.userAgent;
+    if (/^((?!chrome|android|crios|fxios|edg|opr).)*safari/i.test(ua)) {
+      document.documentElement.classList.add("is-safari");
+    }
+  })();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" id="themeColorMeta" content="#455934">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -439,7 +458,20 @@
      real env() value on those). z-index above literally everything else
      in the file, so nothing (the drawer's backdrop, a dropdown, the
      description panel) can ever paint over and visually replace this
-     color with its own. */
+     color with its own.
+     Only ever needed to work around Safari's own native chrome behavior
+     in the first place — every other browser already renders this region
+     correctly with nothing painted there at all, so forcing the same
+     fixed white strip on them would just be an unexplained band with
+     nothing behind it. html.is-safari (set as early as possible, before
+     first paint, by the inline script right after <meta charset> — see
+     there for the actual detection) gates --safe-top-strip-height to a
+     real value; everywhere else it's unset, so both this mask's height
+     and #canvas/#canvasMobile's own margin-top below fall back to 0px via
+     the same var(), and neither has any effect. */
+  html.is-safari {
+    --safe-top-strip-height: max(env(safe-area-inset-top, 0px), 8px);
+  }
   #safeAreaTopMask, #safeAreaBottomMask {
     position: fixed;
     left: 0;
@@ -449,13 +481,27 @@
   }
   #safeAreaTopMask {
     top: 0;
-    height: max(env(safe-area-inset-top, 0px), 8px);
+    height: var(--safe-top-strip-height, 0px);
     background-color: #FFFFFF;
   }
   #safeAreaBottomMask {
     bottom: 0;
     height: env(safe-area-inset-bottom, 0px);
     background-color: var(--panel-dark);
+  }
+  /* Per the user's request: #safeAreaTopMask now permanently occupies real
+     screen space (Safari only — see html.is-safari above) rather than
+     floating over whatever's underneath, so real content needs to start
+     that much further down instead of being covered by it. margin-top
+     (not padding-top) specifically, so it adds on top of #canvas/
+     #canvasMobile's own existing margin:0 auto instead of overriding its
+     horizontal centering — margin-top and margin-left/right are
+     independent, setting one doesn't disturb the other. Same
+     --safe-top-strip-height var as the mask itself, so this can never
+     drift out of sync with its actual rendered height. */
+  html.is-safari #canvas,
+  html.is-safari #canvasMobile {
+    margin-top: var(--safe-top-strip-height, 0px);
   }
 
   .page {
