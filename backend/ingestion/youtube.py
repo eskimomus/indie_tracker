@@ -17,7 +17,7 @@ import time
 from datetime import datetime, timedelta
 import requests
 from googleapiclient.discovery import build
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from models import Finding
 from ingestion.contact_extractor import extract_contacts, merge_contacts
@@ -140,6 +140,23 @@ def fetch_youtube_findings(
         session.commit()
         return []
 
+    # Раньше каждый прогон создавал новую строку Finding на КАЖДОЕ найденное
+    # видео, включая те, что уже были записаны в прошлые разы — популярные
+    # трейлеры продолжают попадать в выдачу поиска неделями, так что одно и
+    # то же видео задваивалось при каждом автосборе (каждые 6 часов) без
+    # предела. Таблица росла бесконтрольно, и именно её раздутый размер —
+    # а не сам ответ /api/games (он и раньше дедуплицировал по игре на
+    # выдаче) — гонял всё больше данных между Postgres и приложением на
+    # каждый /api/games. source_url уникален на видео, так что достаточно
+    # проверить его: если находка уже есть, обновляем просмотры/превью на
+    # месте вместо новой строки.
+    existing_by_url: dict[str, Finding] = {
+        f.source_url: f
+        for f in session.exec(
+            select(Finding).where(Finding.source_platform == "youtube")
+        ).all()
+    }
+
     new_findings = []
     for chunk in _chunked(list(video_ids), 50):  # videos.list принимает максимум 50 id за раз
         videos_resp = yt.videos().list(
@@ -174,11 +191,24 @@ def fetch_youtube_findings(
             thumbnails = snippet.get("thumbnails", {})
             # берём среднее качество, если есть — иначе то, что дают (default всегда есть)
             thumbnail_url = (thumbnails.get("medium") or thumbnails.get("default") or {}).get("url")
+            source_url = f"https://www.youtube.com/watch?v={video['id']}"
+
+            existing = existing_by_url.get(source_url)
+            if existing:
+                # тот же ролик, что уже записан с прошлого прогона — обновляем
+                # просмотры/превью на месте, found_at двигаем вперёд, чтобы
+                # /api/last-updated отражал, что этот прогон реально что-то
+                # трогал, даже если ни одного нового видео не нашлось.
+                existing.metric_value = views
+                existing.thumbnail_url = thumbnail_url
+                existing.found_at = datetime.utcnow()
+                session.add(existing)
+                continue
 
             finding = Finding(
                 game_id=game.id,
                 source_platform="youtube",
-                source_url=f"https://www.youtube.com/watch?v={video['id']}",
+                source_url=source_url,
                 title=snippet["title"],
                 raw_text=description,
                 metric_type="views",
@@ -188,6 +218,7 @@ def fetch_youtube_findings(
             )
             session.add(finding)
             new_findings.append(finding)
+            existing_by_url[source_url] = finding
 
     session.commit()
     return new_findings
