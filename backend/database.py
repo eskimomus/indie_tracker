@@ -3,6 +3,7 @@
 просто поменяв DATABASE_URL — SQLModel/SQLAlchemy работают одинаково).
 """
 import os
+from sqlalchemy import event
 from sqlmodel import SQLModel, create_engine, Session
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "indie_tracker.db")
@@ -13,8 +14,22 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH}")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
+connect_args = {"check_same_thread": False} if IS_SQLITE else {}
 engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+
+if IS_SQLITE:
+    # WAL вместо дефолтного rollback-журнала: читатели (/api/games — почти
+    # каждый заход на сайт) больше не блокируются на время, пока сборщик раз
+    # в 6 часов пишет находки, и наоборот — без этого конкурентный доступ на
+    # SQLite нет-нет да ловит "database is locked". Особенно актуально
+    # теперь, когда файл базы переезжает на persistent disk на Render вместо
+    # мимолётного локального SQLite для разработки.
+    @event.listens_for(engine, "connect")
+    def _enable_wal(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
 
 
 def init_db():
