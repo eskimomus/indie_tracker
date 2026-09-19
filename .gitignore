@@ -16,6 +16,8 @@ build/
 
 # Database
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 indie_tracker.db
